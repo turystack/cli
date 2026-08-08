@@ -3,6 +3,15 @@
 Local-first scaffolding for Turystack applications. The available generators
 create standalone NestJS APIs and React web applications.
 
+## Installation
+
+```bash
+npx @turystack/cli create api my-api
+```
+
+No install step: the CLI runs straight from the registry. The sections
+below cover running it from a local checkout and the non-interactive flags.
+
 ## Use from the Turystack source repository
 
 ```bash
