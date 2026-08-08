@@ -1,0 +1,48 @@
+{
+  "name": "@turystack/cli",
+  "description": "Scaffold Turystack applications from the command line.",
+  "private": false,
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "turystack": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "biome.scaffold.json",
+    "biome.web-scaffold.json",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/turystack/cli.git"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "biome check ./src",
+    "check:fix": "biome check --write ./src",
+    "dev": "node --experimental-strip-types src/index.ts",
+    "format": "biome format --write ./src",
+    "lint": "biome lint ./src",
+    "prebuild": "node --eval \"require('node:fs').rmSync('dist', { force: true, recursive: true })\"",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@biomejs/biome": "2.5.4",
+    "@clack/prompts": "1.7.0"
+  }
+}

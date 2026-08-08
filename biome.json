@@ -1,0 +1,11 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+  "extends": [
+    "../backend-config/biome.json"
+  ],
+  "files": {
+    "includes": [
+      "src/**/*.ts"
+    ]
+  }
+}
