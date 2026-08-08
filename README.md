@@ -101,3 +101,20 @@ node cli/dist/index.js create web my-web \
 ```
 
 Run `node cli/dist/index.js --help` for all options.
+
+## Documentation
+
+Options, API reference and examples:
+
+**https://tury.dev/libs/cli**
+
+
+## Development
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm check
+pnpm test
+pnpm build
+```
