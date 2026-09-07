@@ -104,6 +104,33 @@ const ALL_SKILLS: SkillId[] = [
  * application because an authorization flow with nowhere to sign in is a flow
  * that does not complete.
  */
+/**
+ * The files that have to exist before `pnpm install` can run, and only those.
+ *
+ * Everything else — the tsconfigs above all — is written after. A
+ * `tsconfig.json` that says `extends: '@turystack/backend-config/…'` while
+ * `node_modules` is still being installed is a resolution that genuinely fails,
+ * and an editor watching the folder records that failure and does not retry
+ * when the directory appears: the error then survives until the language server
+ * is restarted, which is what made it look like a phantom.
+ */
+const DECLARES_DEPENDENCIES = [
+  'package.json',
+  'pnpm-workspace.yaml',
+]
+
+function pick(files: GeneratedFiles, names: string[]): GeneratedFiles {
+  return Object.fromEntries(
+    Object.entries(files).filter(([name]) => names.includes(name)),
+  )
+}
+
+function omit(files: GeneratedFiles, names: string[]): GeneratedFiles {
+  return Object.fromEntries(
+    Object.entries(files).filter(([name]) => !names.includes(name)),
+  )
+}
+
 export async function runCreateWorkspace(
   options: CreateWorkspaceOptions,
 ): Promise<void> {
@@ -142,6 +169,169 @@ export async function runCreateWorkspace(
       options.registry,
     )
 
+  const tree: [
+    string,
+    GeneratedFiles,
+  ][] = [
+    [
+      '.',
+      generateWorkspaceFiles({
+        apiName: API_NAME,
+        authAppUrl,
+        devDependencies: {
+          ...ROOT_DEV,
+          ...turystack('.', ROOT_TURYSTACK),
+        },
+        iamSecret: randomBytes(32).toString('base64url'),
+        origins: PRODUCT_APPS.map((app) => ({
+          name: app.name,
+          url: `http://localhost:${app.port}`,
+        })),
+        project: options.name,
+      }),
+    ],
+    [
+      'libs/database',
+      generateDatabaseFiles({
+        databaseName: databaseName(options.name),
+        dependencies: {
+          ...DATABASE_DEPENDENCIES,
+          zod: '^4.4.3',
+          ...turystack('libs/database', DATABASE_TURYSTACK),
+        },
+        devDependencies: {
+          ...BACKEND_PACKAGE_DEV,
+          ...DATABASE_DEV,
+          ...turystack('libs/database', [
+            '@turystack/backend-config',
+          ]),
+        },
+        scope,
+      }),
+    ],
+    [
+      'libs/ui',
+      generateUiFiles(options.name),
+    ],
+    [
+      'libs/oauth-clients',
+      generateOAuthClientsFiles({
+        clients: PRODUCT_APPS.map((app) => ({
+          callbackPath: CALLBACK_PATH,
+          name: app.name,
+        })),
+        dependencies: {},
+        devDependencies: {
+          ...OAUTH_CLIENTS_DEV,
+          ...OAUTH_CLIENTS_PEER,
+          ...turystack('libs/oauth-clients', [
+            '@turystack/backend-config',
+            '@turystack/frontend-config',
+          ]),
+        },
+        scope,
+      }),
+    ],
+    [
+      'domains/iam',
+      generateIamFiles({
+        dependencies: {
+          '@nestjs/common': '^11.0.0',
+          [`${scope}/database`]: 'workspace:*',
+          uuidv7: '^1.2.1',
+          zod: '^4.4.3',
+          ...turystack('domains/iam', IAM_TURYSTACK),
+        },
+        devDependencies: {
+          ...BACKEND_PACKAGE_DEV,
+          ...TEST_DEV,
+          ...turystack('domains/iam', [
+            '@turystack/backend-config',
+          ]),
+        },
+        scope,
+      }),
+    ],
+    [
+      `apps/${API_NAME}`,
+      generateApiFiles({
+        audiences: PRODUCT_APPS.map((app) => app.name),
+        dependencies: {
+          [`${scope}/database`]: 'workspace:*',
+          [`${scope}/iam`]: 'workspace:*',
+          [`${scope}/oauth-clients`]: 'workspace:*',
+          ...API_DEPENDENCIES,
+          ...turystack(`apps/${API_NAME}`, API_TURYSTACK),
+        },
+        devDependencies: {
+          ...API_DEV,
+          ...turystack(`apps/${API_NAME}`, [
+            '@turystack/backend-config',
+          ]),
+        },
+        name: API_NAME,
+        project: options.name,
+        scope,
+      }),
+    ],
+    [
+      `apps/${AUTH_APP_NAME}`,
+      generateWebFiles({
+        apiBaseUrl,
+        audience: 'auth',
+        dependencies: {
+          [`${scope}/iam`]: 'workspace:*',
+          [`${scope}/oauth-clients`]: 'workspace:*',
+          [`${scope}/ui`]: 'workspace:*',
+          ...WEB_DEPENDENCIES,
+          ...turystack(`apps/${AUTH_APP_NAME}`, WEB_TURYSTACK),
+        },
+        devDependencies: {
+          ...WEB_DEV,
+          ...turystack(`apps/${AUTH_APP_NAME}`, [
+            '@turystack/frontend-config',
+          ]),
+        },
+        kind: 'auth',
+        name: AUTH_APP_NAME,
+        openApiUrl: `${apiBaseUrl}/api/v1/auth/openapi`,
+        port: AUTH_APP_PORT,
+        scope,
+      }),
+    ],
+    ...PRODUCT_APPS.map(
+      (
+        app,
+      ): [
+        string,
+        GeneratedFiles,
+      ] => [
+        `apps/${app.name}`,
+        generateWebFiles({
+          apiBaseUrl,
+          audience: app.name,
+          dependencies: {
+            [`${scope}/oauth-clients`]: 'workspace:*',
+            [`${scope}/ui`]: 'workspace:*',
+            ...WEB_DEPENDENCIES,
+            ...turystack(`apps/${app.name}`, WEB_TURYSTACK),
+          },
+          devDependencies: {
+            ...WEB_DEV,
+            ...turystack(`apps/${app.name}`, [
+              '@turystack/frontend-config',
+            ]),
+          },
+          kind: 'audience',
+          name: app.name,
+          openApiUrl: `${apiBaseUrl}/api/v1/${app.name}/openapi`,
+          port: app.port,
+          scope,
+        }),
+      ],
+    ),
+  ]
+
   await step(
     {
       done: 'Repository created',
@@ -153,171 +343,8 @@ export async function runCreateWorkspace(
         recursive: true,
       })
 
-      const tree: [
-        string,
-        GeneratedFiles,
-      ][] = [
-        [
-          '.',
-          generateWorkspaceFiles({
-            apiName: API_NAME,
-            authAppUrl,
-            devDependencies: {
-              ...ROOT_DEV,
-              ...turystack('.', ROOT_TURYSTACK),
-            },
-            iamSecret: randomBytes(32).toString('base64url'),
-            origins: PRODUCT_APPS.map((app) => ({
-              name: app.name,
-              url: `http://localhost:${app.port}`,
-            })),
-            project: options.name,
-          }),
-        ],
-        [
-          'libs/database',
-          generateDatabaseFiles({
-            databaseName: databaseName(options.name),
-            dependencies: {
-              ...DATABASE_DEPENDENCIES,
-              zod: '^4.4.3',
-              ...turystack('libs/database', DATABASE_TURYSTACK),
-            },
-            devDependencies: {
-              ...BACKEND_PACKAGE_DEV,
-              ...DATABASE_DEV,
-              ...turystack('libs/database', [
-                '@turystack/backend-config',
-              ]),
-            },
-            scope,
-          }),
-        ],
-        [
-          'libs/ui',
-          generateUiFiles(options.name),
-        ],
-        [
-          'libs/oauth-clients',
-          generateOAuthClientsFiles({
-            clients: PRODUCT_APPS.map((app) => ({
-              callbackPath: CALLBACK_PATH,
-              name: app.name,
-            })),
-            dependencies: {},
-            devDependencies: {
-              ...OAUTH_CLIENTS_DEV,
-              ...OAUTH_CLIENTS_PEER,
-              ...turystack('libs/oauth-clients', [
-                '@turystack/backend-config',
-                '@turystack/frontend-config',
-              ]),
-            },
-            scope,
-          }),
-        ],
-        [
-          'domains/iam',
-          generateIamFiles({
-            dependencies: {
-              '@nestjs/common': '^11.0.0',
-              [`${scope}/database`]: 'workspace:*',
-              uuidv7: '^1.2.1',
-              zod: '^4.4.3',
-              ...turystack('domains/iam', IAM_TURYSTACK),
-            },
-            devDependencies: {
-              ...BACKEND_PACKAGE_DEV,
-              ...TEST_DEV,
-              ...turystack('domains/iam', [
-                '@turystack/backend-config',
-              ]),
-            },
-            scope,
-          }),
-        ],
-        [
-          `apps/${API_NAME}`,
-          generateApiFiles({
-            audiences: PRODUCT_APPS.map((app) => app.name),
-            dependencies: {
-              [`${scope}/database`]: 'workspace:*',
-              [`${scope}/iam`]: 'workspace:*',
-              [`${scope}/oauth-clients`]: 'workspace:*',
-              ...API_DEPENDENCIES,
-              ...turystack(`apps/${API_NAME}`, API_TURYSTACK),
-            },
-            devDependencies: {
-              ...API_DEV,
-              ...turystack(`apps/${API_NAME}`, [
-                '@turystack/backend-config',
-              ]),
-            },
-            name: API_NAME,
-            project: options.name,
-            scope,
-          }),
-        ],
-        [
-          `apps/${AUTH_APP_NAME}`,
-          generateWebFiles({
-            apiBaseUrl,
-            audience: 'auth',
-            dependencies: {
-              [`${scope}/iam`]: 'workspace:*',
-              [`${scope}/oauth-clients`]: 'workspace:*',
-              [`${scope}/ui`]: 'workspace:*',
-              ...WEB_DEPENDENCIES,
-              ...turystack(`apps/${AUTH_APP_NAME}`, WEB_TURYSTACK),
-            },
-            devDependencies: {
-              ...WEB_DEV,
-              ...turystack(`apps/${AUTH_APP_NAME}`, [
-                '@turystack/frontend-config',
-              ]),
-            },
-            kind: 'auth',
-            name: AUTH_APP_NAME,
-            openApiUrl: `${apiBaseUrl}/api/v1/auth/openapi`,
-            port: AUTH_APP_PORT,
-            scope,
-          }),
-        ],
-        ...PRODUCT_APPS.map(
-          (
-            app,
-          ): [
-            string,
-            GeneratedFiles,
-          ] => [
-            `apps/${app.name}`,
-            generateWebFiles({
-              apiBaseUrl,
-              audience: app.name,
-              dependencies: {
-                [`${scope}/oauth-clients`]: 'workspace:*',
-                [`${scope}/ui`]: 'workspace:*',
-                ...WEB_DEPENDENCIES,
-                ...turystack(`apps/${app.name}`, WEB_TURYSTACK),
-              },
-              devDependencies: {
-                ...WEB_DEV,
-                ...turystack(`apps/${app.name}`, [
-                  '@turystack/frontend-config',
-                ]),
-              },
-              kind: 'audience',
-              name: app.name,
-              openApiUrl: `${apiBaseUrl}/api/v1/${app.name}/openapi`,
-              port: app.port,
-              scope,
-            }),
-          ],
-        ),
-      ]
-
       for (const [directory, files] of tree) {
-        await writeFiles(at(directory), files)
+        await writeFiles(at(directory), pick(files, DECLARES_DEPENDENCIES))
       }
     },
   )
@@ -332,6 +359,19 @@ export async function runCreateWorkspace(
       () => installWorkspace(target),
     )
   }
+
+  await step(
+    {
+      done: 'Source written',
+      failed: 'Could not write the source',
+      start: 'Writing the source',
+    },
+    async () => {
+      for (const [directory, files] of tree) {
+        await writeFiles(at(directory), omit(files, DECLARES_DEPENDENCIES))
+      }
+    },
+  )
 
   await step(
     {
