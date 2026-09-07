@@ -2,7 +2,7 @@
   "name": "@turystack/cli",
   "description": "Scaffold Turystack applications from the command line.",
   "private": false,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
   "packageManager": "pnpm@10.12.3",
   "bin": {
