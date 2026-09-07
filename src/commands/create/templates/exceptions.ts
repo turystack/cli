@@ -34,6 +34,7 @@ export function generateExceptionsFiles(context: {
       name: '@repo/exceptions',
       private: true,
       scripts: {
+        build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
         typecheck: 'tsc --noEmit',
       },
       type: 'module',

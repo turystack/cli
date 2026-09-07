@@ -39,6 +39,7 @@ export function generateIdentityFiles(context: {
       name: '@repo/identity',
       private: true,
       scripts: {
+        build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
         test: 'vitest run',
         'test:coverage': 'vitest run --coverage',
         typecheck: 'tsc --noEmit',
@@ -381,10 +382,10 @@ export async function verifyPassword(
     'src/use-cases/register-identity/register-identity.ts': `import { Injectable } from '@nestjs/common'
 import { exceptions } from '@repo/exceptions'
 
-import { IdentityRepository } from '../../identity.repository.js'
-import type { Identity } from '../../identity.entity.js'
-import type { RegisterIdentityInput } from '../../identity.types.js'
-import { hashPassword } from '../../password.js'
+import { IdentityRepository } from '@/identity.repository.js'
+import type { Identity } from '@/identity.entity.js'
+import type { RegisterIdentityInput } from '@/identity.types.js'
+import { hashPassword } from '@/password.js'
 
 @Injectable()
 export class RegisterIdentity {
@@ -410,7 +411,7 @@ export class RegisterIdentity {
     'src/use-cases/resolve-profile/resolve-profile.ts': `import { Injectable } from '@nestjs/common'
 import type { IamProfile, IamProfileResolver } from '@turystack/nestjs-iam'
 
-import { IdentityRepository } from '../../identity.repository.js'
+import { IdentityRepository } from '@/identity.repository.js'
 
 /**
  * What IAM asks for on every authorized request: who this token belongs to, and
@@ -440,9 +441,9 @@ export class ResolveProfile implements IamProfileResolver {
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.test.ts': `import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Identity } from '../../identity.entity.js'
-import type { IdentityRepository } from '../../identity.repository.js'
-import { hashPassword } from '../../password.js'
+import { Identity } from '@/identity.entity.js'
+import type { IdentityRepository } from '@/identity.repository.js'
+import { hashPassword } from '@/password.js'
 
 import { SignInWithPassword } from './sign-in-with-password.js'
 
@@ -551,9 +552,9 @@ describe('SignInWithPassword', () => {
     'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Injectable } from '@nestjs/common'
 import { exceptions } from '@repo/exceptions'
 
-import { IdentityRepository } from '../../identity.repository.js'
-import type { Identity } from '../../identity.entity.js'
-import type { SignInWithPasswordInput } from '../../identity.types.js'
+import { IdentityRepository } from '@/identity.repository.js'
+import type { Identity } from '@/identity.entity.js'
+import type { SignInWithPasswordInput } from '@/identity.types.js'
 
 @Injectable()
 export class SignInWithPassword {
@@ -580,9 +581,9 @@ export class SignInWithPassword {
 `,
     'src/use-cases/sign-in-with-provider/sign-in-with-provider.ts': `import { Injectable } from '@nestjs/common'
 
-import { IdentityRepository } from '../../identity.repository.js'
-import type { Identity } from '../../identity.entity.js'
-import type { SocialProfile } from '../../identity.types.js'
+import { IdentityRepository } from '@/identity.repository.js'
+import type { Identity } from '@/identity.entity.js'
+import type { SocialProfile } from '@/identity.types.js'
 
 @Injectable()
 export class SignInWithProvider {
@@ -632,9 +633,17 @@ export class SignInWithProvider {
       '../../packages/database/tsconfig.build.json',
     ]),
     'tsconfig.json': renderPackageTsconfig(),
-    'vitest.config.ts': `import { backend } from '@turystack/backend-config/vitest'
+    'vitest.config.ts': `import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { backend } from '@turystack/backend-config/vitest'
+
+const root = path.dirname(fileURLToPath(import.meta.url))
 
 export default backend({
+  alias: {
+    '@': path.resolve(root, 'src'),
+  },
   include: [
     'src/**/*.test.ts',
   ],

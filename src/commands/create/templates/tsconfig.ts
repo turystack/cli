@@ -12,6 +12,14 @@ export function renderPackageTsconfig(): string {
         declaration: true,
         declarationMap: true,
         outDir: './dist',
+        // Every import inside a package is written `@/…`. A file three folders
+        // deep otherwise reaches its neighbours through `../../`, which says
+        // nothing about where it is going and breaks the moment the file moves.
+        paths: {
+          '@/*': [
+            './src/*',
+          ],
+        },
         rootDir: './src',
       },
       exclude: [

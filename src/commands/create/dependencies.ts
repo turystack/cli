@@ -60,6 +60,9 @@ export const ROOT_DEV = {
 
 export const BACKEND_PACKAGE_DEV = {
   '@types/node': '^24.0.0',
+  // Every package writes its internal imports as `@/…`; `tsc` leaves the
+  // specifier alone in the emitted JavaScript, and Node cannot resolve it.
+  'tsc-alias': '^1.8.0',
   typescript: '^7.0.2',
 } as const
 

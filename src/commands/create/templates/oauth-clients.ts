@@ -48,6 +48,7 @@ export function generateOAuthClientsFiles(context: {
       name: '@repo/oauth-clients',
       private: true,
       scripts: {
+        build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
         typecheck: 'tsc --noEmit && tsc --noEmit -p tsconfig.react.json',
       },
       type: 'module',
@@ -163,7 +164,7 @@ export function oauthClients(
   })
 }
 `,
-    'src/react/auth-client.ts': `import { CLIENTS } from '../clients.js'
+    'src/react/auth-client.ts': `import { CLIENTS } from '@/clients.js'
 
 import { createVerifier, deriveChallenge } from './pkce.js'
 import { rememberVerifier, takeVerifier, type Session } from './session.js'
@@ -272,7 +273,7 @@ export async function signOut(): Promise<void> {
 `,
     'src/react/auth-provider.tsx': `import { type ReactNode, useEffect, useState } from 'react'
 
-import { CLIENTS } from '../clients.js'
+import { CLIENTS } from '@/clients.js'
 
 import {
   beginSignIn,
@@ -633,6 +634,15 @@ export function takeVerifier(): {
     )}\n`,
     'tsconfig.react.json': `${JSON.stringify(
       {
+        compilerOptions: {
+          // The React half is typechecked by its own config, and it imports
+          // `@/clients.js` like everything else here.
+          paths: {
+            '@/*': [
+              './src/*',
+            ],
+          },
+        },
         extends: '@turystack/frontend-config/tsconfig.web.json',
         include: [
           'src/clients.ts',

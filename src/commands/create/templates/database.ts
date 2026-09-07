@@ -91,6 +91,7 @@ export default defineConfig({
       name: '@repo/database',
       private: true,
       scripts: {
+        build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
         'db:generate': 'drizzle-kit generate',
         'db:migrate': 'drizzle-kit migrate',
         'db:studio': 'drizzle-kit studio',
