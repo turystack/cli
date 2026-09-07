@@ -89,7 +89,7 @@ dist
 node_modules
 *.tsbuildinfo
 `,
-    'biome.json': renderBiomeConfig({
+    'biome.jsonc': renderBiomeConfig({
       kind: 'backend',
       nested: false,
     }),
@@ -140,9 +140,13 @@ volumes:
         gate: 'turystack-proof run',
         'gate:report': 'turystack-proof report --out .',
         lint: 'biome lint .',
-        test: 'pnpm -r --if-present run test',
-        'test:coverage': 'pnpm -r --if-present run test:coverage',
-        typecheck: 'pnpm -r --if-present run typecheck',
+        // `tsc -b` first, in all three: a workspace package resolves through
+        // its `dist`, and `tsc --noEmit` inside one package does not build the
+        // packages it depends on. Without the build step a fresh clone fails
+        // on `@repo/exceptions` rather than on anything it wrote.
+        test: 'tsc -b && pnpm -r --if-present run test',
+        'test:coverage': 'tsc -b && pnpm -r --if-present run test:coverage',
+        typecheck: 'tsc -b && pnpm -r --if-present run typecheck',
       },
       devDependencies: sortedRecord(context.devDependencies),
     }),

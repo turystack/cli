@@ -386,7 +386,7 @@ ${projects}
 export function generateApiFiles(context: ApiTemplateContext): GeneratedFiles {
   const files: GeneratedFiles = {
     '.gitignore': 'coverage\ndist\nnode_modules\n*.tsbuildinfo\n',
-    'biome.json': renderBiomeConfig({
+    'biome.jsonc': renderBiomeConfig({
       kind: 'backend',
       nested: true,
     }),
@@ -452,6 +452,54 @@ pnpm --filter ./apps/${context.name} dev
 `,
     'src/app.module.ts': renderAppModule(context),
     'src/config.schema.ts': renderConfigSchema(context),
+    'src/config.schema.test.ts': `import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+
+import { configSchema } from './config.schema.js'
+
+/**
+ * The environment contract, checked where it is cheap to check.
+ *
+ * The schema is the only thing standing between a missing variable and a
+ * process that starts, serves traffic and fails on the first request that
+ * needs it. These three cases are the ones that have actually reached
+ * production somewhere: a secret pasted short, a port that is not whole, and
+ * an environment that is simply complete.
+ */
+const environment = z.object(configSchema)
+
+const complete = {
+  AUTH_APP_URL: 'http://localhost:5173',
+  DATABASE_URL: 'postgres://acme:acme@localhost:5432/acme',
+  IAM_SECRET: 'k'.repeat(32),
+  NODE_ENV: 'test',
+  PORT: '3000',
+}
+
+describe('configSchema', () => {
+  it('accepts an environment that has everything the API needs', () => {
+    expect(environment.parse(complete).PORT).toBe(3000)
+  })
+
+  it('refuses a secret short enough to be worth guessing', () => {
+    const result = environment.safeParse({
+      ...complete,
+      IAM_SECRET: 'short',
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('refuses a port that is not a whole number', () => {
+    const result = environment.safeParse({
+      ...complete,
+      PORT: '3.5',
+    })
+
+    expect(result.success).toBe(false)
+  })
+})
+`,
     'src/controllers/auth/auth.controller.ts': renderAuthController(),
     'src/main.ts': renderMain(context),
     'tsconfig.build.json': `${JSON.stringify(

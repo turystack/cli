@@ -310,7 +310,7 @@ export class Identity {
 }
 `,
     'src/identity.repository.ts': `import { Injectable } from '@nestjs/common'
-import { DatabaseService } from '@turystack/nestjs-database'
+import { DatabaseService } from '@repo/database'
 
 import { Identity } from './identity.entity.js'
 import type { IdentityRecord, SocialProfile } from './identity.types.js'

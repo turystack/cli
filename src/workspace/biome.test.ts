@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -19,19 +19,18 @@ const SOURCE_ROOT = resolve(
 async function shippedPlugins(
   configPackage: string,
 ): Promise<string[] | null> {
-  const manifest = resolve(SOURCE_ROOT, configPackage, 'biome.json')
+  // The directory, not the config's own `plugins` array: a shared config no
+  // longer declares one, because a path inside it is read relative to whatever
+  // folder extends it and every consumer inherited paths it could not resolve.
+  const directory = resolve(SOURCE_ROOT, configPackage, 'plugins')
 
-  if (!(await exists(manifest))) {
+  if (!(await exists(directory))) {
     return null
   }
 
-  const config = JSON.parse(await readFile(manifest, 'utf8')) as {
-    plugins?: string[]
-  }
-
-  return (config.plugins ?? []).map((plugin) =>
-    plugin.replace('./plugins/', ''),
-  )
+  return (await readdir(directory))
+    .filter((file) => file.endsWith('.grit'))
+    .sort()
 }
 
 /**

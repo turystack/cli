@@ -220,11 +220,23 @@ export async function runAddAudience(
     async () => {
       await formatDirectory(
         appTarget,
-        await resolveBiomeConfig(root, localRoot, CLI_DIRECTORY, 'frontend'),
+        await resolveBiomeConfig(
+          appTarget,
+          root,
+          localRoot,
+          CLI_DIRECTORY,
+          'frontend',
+        ),
       )
       await formatDirectory(
         api,
-        await resolveBiomeConfig(root, localRoot, CLI_DIRECTORY, 'backend'),
+        await resolveBiomeConfig(
+          api,
+          root,
+          localRoot,
+          CLI_DIRECTORY,
+          'backend',
+        ),
       )
     },
   )

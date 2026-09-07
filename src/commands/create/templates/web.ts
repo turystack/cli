@@ -98,7 +98,7 @@ import {
   PasswordInput,
   Typography,
 } from '@turystack/react-web'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import type { z } from 'zod'
 
 import { signIn } from '@/api/auth'
@@ -147,13 +147,40 @@ function SignInPage() {
         <Typography component="h1" size="2xl" weight="bold">
           Sign in to ${titleCase(context.name)}
         </Typography>
-        <Form form={form} onSubmit={onSubmit}>
-          <Input control={form.control} label="Email" name="email" />
-          <PasswordInput
-            control={form.control}
+        <Form onSubmit={form.handleSubmit(onSubmit)}>
+          <Form.Field error={form.formState.errors.email?.message} label="Email">
+            <Controller
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <Input
+                  autoComplete="email"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  onChange={field.onChange}
+                  value={field.value ?? ''}
+                />
+              )}
+            />
+          </Form.Field>
+          <Form.Field
+            error={form.formState.errors.password?.message}
             label="Password"
-            name="password"
-          />
+          >
+            <Controller
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <PasswordInput
+                  autoComplete="current-password"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  onChange={field.onChange}
+                  value={field.value ?? ''}
+                />
+              )}
+            />
+          </Form.Field>
           <Button loading={form.formState.isSubmitting} type="submit">
             Sign in
           </Button>
@@ -166,7 +193,7 @@ function SignInPage() {
 }
 
 function renderAuthApiClient(): string {
-  return `import type { z } from 'zod'
+  return `import { z } from 'zod'
 
 import {
   registerIdentitySchema,
@@ -270,7 +297,7 @@ VITE_API_BASE_URL=${context.apiBaseUrl}
     '.env': env,
     '.env.example': env,
     '.gitignore': 'coverage\ndist\n.env\nnode_modules\n',
-    'biome.json': renderBiomeConfig({
+    'biome.jsonc': renderBiomeConfig({
       kind: 'frontend',
       nested: true,
     }),
@@ -353,7 +380,11 @@ export default defineConfig({
         dev: 'vite',
         format: 'biome format --write .',
         lint: 'biome lint .',
-        prebuild: 'kubb generate && tsr generate',
+        // `kubb generate` reads the OpenAPI document from the running API, so it
+      // cannot be part of `build` — a fresh clone has no API up, and the build
+      // would fail on a fetch rather than on the code. Regenerate the SDK
+      // deliberately with `pnpm api:generate` while the API is running.
+      prebuild: 'tsr generate',
         predev: 'tsr generate',
         pretypecheck: 'tsr generate',
         'routes:generate': 'tsr generate',
@@ -553,6 +584,102 @@ export default web({
 
   if (isAuth) {
     files['src/api/auth.ts'] = renderAuthApiClient()
+    files['src/api/auth.test.ts'] = `import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * The three calls that exist before the generated SDK does.
+ *
+ * The base URL is parsed at module load, so every case imports the module
+ * fresh after stubbing the environment — importing it once at the top would
+ * bind the first stub and make the rest of the file lie.
+ */
+async function loadClient() {
+  vi.resetModules()
+
+  return import('./auth.js')
+}
+
+beforeEach(() => {
+  vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:3000')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
+})
+
+describe('signIn', () => {
+  it('posts the credentials and answers with where to send the browser', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          redirectTo: 'http://localhost:5173/callback?code=abc',
+        }),
+      ok: true,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { signIn } = await loadClient()
+    const result = await signIn({
+      email: 'person@acme.test',
+      password: 'correct horse battery staple',
+      tx: 'tx_1',
+    })
+
+    expect(result.redirectTo).toBe('http://localhost:5173/callback?code=abc')
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+
+    expect(url).toBe('http://localhost:3000/api/v1/auth/sign-in')
+    // Without this the session cookie the API sets never reaches the browser,
+    // and the sign-in appears to succeed while leaving nobody signed in.
+    expect(init.credentials).toBe('include')
+  })
+
+  it('raises the message the API sent rather than a status code', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: () =>
+          Promise.resolve({
+            message: 'Those credentials do not match.',
+          }),
+        ok: false,
+      }),
+    )
+
+    const { signIn } = await loadClient()
+
+    await expect(
+      signIn({
+        email: 'person@acme.test',
+        password: 'wrong',
+        tx: 'tx_1',
+      }),
+    ).rejects.toThrow('Those credentials do not match.')
+  })
+
+  it('falls back to a readable message when the body is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: () => Promise.reject(new Error('not json')),
+        ok: false,
+      }),
+    )
+
+    const { signIn } = await loadClient()
+
+    await expect(
+      signIn({
+        email: 'person@acme.test',
+        password: 'wrong',
+        tx: 'tx_1',
+      }),
+    ).rejects.toThrow('Could not complete this request.')
+  })
+})
+`
     files['src/routes/index.tsx'] = renderSignInRoute(context)
 
     return files

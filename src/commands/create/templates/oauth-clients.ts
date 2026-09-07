@@ -1,4 +1,5 @@
 import type { GeneratedFiles } from '../../../workspace/fs.js'
+import { renderBiomeConfig } from '../../../workspace/biome.js'
 import { renderManifest, sortedRecord } from './tsconfig.js'
 
 // turystack-proof:pattern-data — this file emits a package as source text.
@@ -621,6 +622,15 @@ export function AuthProvider({
       null,
       2,
     )}\n`,
+    // The package is dual — a data half and a React half — and Biome takes one
+    // config per package rather than one per folder. The frontend rules are
+    // the right ones here: `src/react` is browser code, and the backend gates
+    // it would otherwise inherit from the repository root read `Date.now()` in
+    // a session-expiry check as an ambient clock.
+    'biome.jsonc': renderBiomeConfig({
+      kind: 'frontend',
+      nested: true,
+    }),
     'tsconfig.react.json': `${JSON.stringify(
       {
         extends: '@turystack/frontend-config/tsconfig.web.json',

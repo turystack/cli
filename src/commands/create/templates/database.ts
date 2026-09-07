@@ -184,6 +184,16 @@ declare module '@turystack/nestjs-database' {
 `,
     'src/index.ts': `export { tables } from './database.migration.js'
 export { databaseRelations, databaseSchema } from './database.schema.js'
+/**
+ * The service, re-exported from the package that taught it the schema.
+ *
+ * \`DatabaseServiceRegistry\` is augmented in \`database.schema.ts\`, and a module
+ * augmentation only applies to programs that contain the file declaring it.
+ * Importing \`DatabaseService\` straight from \`@turystack/nestjs-database\` gets
+ * the bare class — no \`db.users\`, no row types — so every consumer imports it
+ * from here instead, and the schema comes with it.
+ */
+export { DatabaseService } from '@turystack/nestjs-database'
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig(),
     'tsconfig.json': renderPackageTsconfig(),

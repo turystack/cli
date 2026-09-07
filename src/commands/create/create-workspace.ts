@@ -295,33 +295,42 @@ export async function runCreateWorkspace(
       // repository with one config judges React code by backend rules — which
       // is how the first run of this command reported twenty violations that
       // were really one wrong argument.
-      const backend = await resolveBiomeConfig(
-        target,
-        localRoot,
-        CLI_DIRECTORY,
-        'backend',
-      )
-      const frontend = await resolveBiomeConfig(
-        target,
-        localRoot,
-        CLI_DIRECTORY,
-        'frontend',
-      )
-
-      for (const directory of [
-        'packages/exceptions',
-        'packages/database',
-        'domains/identity',
-        `apps/${API_NAME}`,
-      ]) {
-        await formatDirectory(at(directory), backend)
-      }
-
-      for (const directory of [
-        'packages/oauth-clients',
-        `apps/${AUTH_APP_NAME}`,
-      ]) {
-        await formatDirectory(at(directory), frontend)
+      // Resolved per subtree rather than once per kind: whether a package can
+      // reach its config is a fact about that package's `node_modules`, and
+      // pnpm puts a dependency where it is declared.
+      for (const [
+        kind,
+        directories,
+      ] of [
+        [
+          'backend',
+          [
+            'packages/exceptions',
+            'packages/database',
+            'domains/identity',
+            `apps/${API_NAME}`,
+          ],
+        ],
+        [
+          'frontend',
+          [
+            'packages/oauth-clients',
+            `apps/${AUTH_APP_NAME}`,
+          ],
+        ],
+      ] as const) {
+        for (const directory of directories) {
+          await formatDirectory(
+            at(directory),
+            await resolveBiomeConfig(
+              at(directory),
+              target,
+              localRoot,
+              CLI_DIRECTORY,
+              kind,
+            ),
+          )
+        }
       }
     },
   )

@@ -26,22 +26,38 @@ const INSTALLED_CONFIG: Record<ConfigKind, string> = {
 /**
  * Picks the Biome config that can actually resolve right now.
  *
- * Freshly written files are formatted before `pnpm install` has necessarily
- * run, and the project's own `biome.json` extends a package that may not be on
- * disk yet. Reaching for an unresolvable config fails the scaffold over
- * formatting, so the order is: what the workspace installed, then the Turystack
- * source, then the copy this CLI ships.
+ * `undefined` means "let Biome find it", and that is the answer whenever the
+ * workspace has its dependencies: the repository's own configs sit at the right
+ * depth, so `packages/exceptions` is formatted by the root config and
+ * `apps/auth` by its own — with the includes, assists and plugins the project
+ * will actually be checked against.
+ *
+ * Pointing `--config-path` at the installed config package instead is what the
+ * scaffold used to do, and it formatted nothing: the `files.includes` inside
+ * that config are read relative to the folder holding it, so `**\/src\/**\/*`
+ * matched paths under `node_modules` and never a line of generated code.
+ *
+ * The fallbacks are for the moment before `pnpm install`: the Turystack source,
+ * then the copy this CLI ships.
  */
 export async function resolveBiomeConfig(
+  target: string,
   workspaceRoot: string,
   localRoot: string | undefined,
   cliDirectory: string,
   kind: ConfigKind,
-): Promise<string> {
-  const installed = resolve(workspaceRoot, INSTALLED_CONFIG[kind])
-
-  if (await exists(installed)) {
-    return installed
+): Promise<string | undefined> {
+  // The subtree first. pnpm installs a package where it is declared, so
+  // `@turystack/frontend-config` lives under `apps/auth/node_modules` and never
+  // at the repository root — probing only the root answered "not installed" for
+  // every frontend package and quietly formatted them with the fallback.
+  for (const candidate of [
+    target,
+    workspaceRoot,
+  ]) {
+    if (await exists(resolve(candidate, INSTALLED_CONFIG[kind]))) {
+      return undefined
+    }
   }
 
   if (localRoot) {
@@ -64,7 +80,7 @@ export async function resolveBiomeConfig(
  */
 export async function formatDirectory(
   target: string,
-  configPath: string,
+  configPath: string | undefined,
 ): Promise<void> {
   const biomePackage = require.resolve('@biomejs/biome/package.json')
   const biomeExecutable = resolve(dirname(biomePackage), 'bin/biome')
@@ -79,8 +95,12 @@ export async function formatDirectory(
         biomeExecutable,
         command,
         '--write',
-        '--config-path',
-        configPath,
+        ...(configPath
+          ? [
+              '--config-path',
+              configPath,
+            ]
+          : []),
         '.',
       ],
       target,

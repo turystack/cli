@@ -99,6 +99,12 @@ const PLUGINS = {
  * to start when it finds a configuration file inside another one's project
  * without `"root": false`, so the flag is what lets `apps/web` be linted by the
  * frontend rules while the root keeps the backend ones.
+ *
+ * Every config is written as `biome.jsonc`, not `biome.json`. The comment
+ * below is what stops someone from deleting the plugin list, and a comment in
+ * a `biome.json` is not a parse error — Biome silently falls back to its
+ * defaults. The whole repository was then formatted with tabs and linted with
+ * none of these rules, and nothing said so.
  */
 export function renderBiomeConfig(options: {
   kind: 'backend' | 'frontend'
@@ -111,18 +117,13 @@ export function renderBiomeConfig(options: {
     )
     .join(',\n')
 
+  // The keys are emitted in the order Biome's own `useSortedKeys` wants, so the
+  // config it writes does not fail the check it configures.
   return `{
   "$schema": "${BIOME_SCHEMA}",
-${options.nested ? '  "root": false,\n' : ''}  "extends": ["${packageName}/biome"],
-  // A GritQL plugin path is read relative to the config that declares it, so it
-  // does not travel through "extends". The list is repeated here on purpose;
-  // dropping one silently turns off the gate that cites it.
-  "plugins": [
-${plugins}
-  ],
+  "extends": ["${packageName}/biome"],
   "overrides": [
     {
-      "includes": ["package.json"],
       "assist": {
         "actions": {
           "source": {
@@ -130,9 +131,16 @@ ${plugins}
             "useSortedProperties": "off"
           }
         }
-      }
+      },
+      "includes": ["package.json"]
     }
-  ]
+  ],
+  // A GritQL plugin path is read relative to the config that declares it, so it
+  // does not travel through "extends". The list is repeated here on purpose;
+  // dropping one silently turns off the gate that cites it.
+  "plugins": [
+${plugins}
+  ]${options.nested ? ',\n  "root": false' : ''}
 }
 `
 }

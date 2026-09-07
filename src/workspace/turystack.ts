@@ -25,107 +25,107 @@ export const TURYSTACK_PACKAGES: Record<
 > = {
   '@turystack/backend-config': {
     directory: 'backend-config',
-    version: '1.0.2',
+    version: '1.2.2',
   },
   '@turystack/entity': {
     directory: 'entity',
-    version: '1.0.2',
+    version: '1.0.4',
   },
   '@turystack/exceptions': {
     directory: 'exceptions',
-    version: '1.0.2',
+    version: '1.0.4',
   },
   '@turystack/fields': {
     directory: 'fields',
-    version: '0.0.1',
+    version: '0.0.4',
   },
   '@turystack/frontend-config': {
     directory: 'frontend-config',
-    version: '1.0.1',
+    version: '1.2.2',
   },
   '@turystack/nestjs-cache': {
     directory: 'nestjs-cache',
-    version: '1.0.0',
+    version: '1.1.0',
   },
   '@turystack/nestjs-config': {
     directory: 'nestjs-config',
-    version: '1.0.2',
+    version: '1.0.3',
   },
   '@turystack/nestjs-context': {
     directory: 'nestjs-context',
-    version: '1.0.0',
+    version: '1.0.2',
   },
   '@turystack/nestjs-database': {
     directory: 'nestjs-database',
-    version: '1.0.0',
+    version: '2.1.0',
   },
   '@turystack/nestjs-iam': {
     directory: 'nestjs-iam',
-    version: '1.0.0',
+    version: '1.1.0',
   },
   '@turystack/nestjs-idempotency': {
     directory: 'nestjs-idempotency',
-    version: '1.0.0',
+    version: '1.0.2',
   },
   '@turystack/nestjs-lock': {
     directory: 'nestjs-lock',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/nestjs-logger': {
     directory: 'nestjs-logger',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/nestjs-oauth': {
     directory: 'nestjs-oauth',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/nestjs-observability': {
     directory: 'nestjs-observability',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/nestjs-publisher': {
     directory: 'nestjs-publisher',
-    version: '1.0.0',
+    version: '2.0.0',
   },
   '@turystack/nestjs-rate-limit': {
     directory: 'nestjs-rate-limit',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/nestjs-resilience': {
     directory: 'nestjs-resilience',
-    version: '1.0.0',
+    version: '1.0.2',
   },
   '@turystack/nestjs-server': {
     directory: 'nestjs-server',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/nestjs-social-auth': {
     directory: 'nestjs-social-auth',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/nestjs-storage': {
     directory: 'nestjs-storage',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   '@turystack/proof-mode-gates': {
     directory: 'proof-mode-gates',
-    version: '1.0.0',
+    version: '1.0.4',
   },
   '@turystack/query-dsl': {
     directory: 'query-dsl',
-    version: '1.0.2',
+    version: '1.0.4',
   },
   '@turystack/react-hooks': {
     directory: 'react-hooks',
-    version: '1.0.1',
+    version: '1.1.0',
   },
   '@turystack/react-i18n': {
     directory: 'react-i18n',
-    version: '1.0.0',
+    version: '1.0.3',
   },
   '@turystack/react-icons': {
     directory: 'react-icons',
-    version: '1.0.3',
+    version: '1.1.0',
   },
   '@turystack/react-mobile': {
     directory: 'react-mobile',
@@ -133,11 +133,11 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/react-web': {
     directory: 'react-web',
-    version: '1.0.0',
+    version: '2.0.0',
   },
   '@turystack/saga': {
     directory: 'saga',
-    version: '1.0.0',
+    version: '1.0.1',
   },
 }
 

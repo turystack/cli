@@ -113,7 +113,13 @@ export async function runAddDomain(options: AddDomainOptions): Promise<void> {
     async () => {
       await formatDirectory(
         target,
-        await resolveBiomeConfig(root, localRoot, CLI_DIRECTORY, 'backend'),
+        await resolveBiomeConfig(
+          target,
+          root,
+          localRoot,
+          CLI_DIRECTORY,
+          'backend',
+        ),
       )
     },
   )

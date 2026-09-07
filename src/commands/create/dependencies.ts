@@ -141,9 +141,15 @@ export const WEB_DEV = {
   vitest: '^4.1.10',
 } as const
 
+// This package is typechecked twice, once through the API config and once
+// through the web one, so it carries both configs' ambient type libraries:
+// `node` for the first, `vite/client` for the second. Neither is imported by
+// anything in `src` — they are asked for by `types`, and a missing one stops
+// `tsc` at TS2688 before it reads a line of the client registry.
 export const OAUTH_CLIENTS_DEV = {
   '@types/react': '^19.2.17',
-  typescript: '^7.0.2',
+  vite: '^8.1.5',
+  ...BACKEND_PACKAGE_DEV,
 } as const
 
 export const OAUTH_CLIENTS_PEER = {
