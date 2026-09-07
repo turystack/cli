@@ -45,6 +45,15 @@
   },
   "dependencies": {
     "@biomejs/biome": "2.5.4",
-    "@clack/prompts": "1.7.0"
+    "@clack/prompts": "1.7.0",
+    "@turystack/architecture-pattern": "^2.0.0",
+    "@turystack/backend-pattern": "^2.0.3",
+    "@turystack/frontend-pattern": "^1.0.5",
+    "@turystack/frontend-primitives-pattern": "^1.0.4",
+    "@turystack/harness": "^1.0.1",
+    "@turystack/modeling": "^1.0.1",
+    "@turystack/proof-mode": "^1.0.1",
+    "@turystack/spec-template": "^1.0.1",
+    "@turystack/uiux-template": "^1.0.1"
   }
 }

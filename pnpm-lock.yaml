@@ -14,6 +14,33 @@ importers:
       '@clack/prompts':
         specifier: 1.7.0
         version: 1.7.0
+      '@turystack/architecture-pattern':
+        specifier: ^2.0.0
+        version: 2.0.0
+      '@turystack/backend-pattern':
+        specifier: ^2.0.3
+        version: 2.0.3
+      '@turystack/frontend-pattern':
+        specifier: ^1.0.5
+        version: 1.0.5
+      '@turystack/frontend-primitives-pattern':
+        specifier: ^1.0.4
+        version: 1.0.4
+      '@turystack/harness':
+        specifier: ^1.0.1
+        version: 1.0.1
+      '@turystack/modeling':
+        specifier: ^1.0.1
+        version: 1.0.1
+      '@turystack/proof-mode':
+        specifier: ^1.0.1
+        version: 1.0.1
+      '@turystack/spec-template':
+        specifier: ^1.0.1
+        version: 1.0.1
+      '@turystack/uiux-template':
+        specifier: ^1.0.1
+        version: 1.0.1
     devDependencies:
       '@turystack/backend-config':
         specifier: ^1.3.0
@@ -207,12 +234,48 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@turystack/architecture-pattern@2.0.0':
+    resolution: {integrity: sha512-vJ5jq9KjdXvtVJjgFq51IccMnNvnN6E5etx+7RBSgwIjM/NDaFOT8Ly2cCPPBm7mble5FH0qb9oEX+usZTtJSw==}
+    engines: {node: '>=20'}
+
   '@turystack/backend-config@1.3.0':
     resolution: {integrity: sha512-njNYvQ6Yhxmh1no/9nTyHCd9zLLB8ve+Gr45QCEhijC5/YT9wbKaR0pWjsSx5CASiqHDVrWq4hDDk8th8YutwQ==}
     engines: {node: '>=20'}
 
+  '@turystack/backend-pattern@2.0.3':
+    resolution: {integrity: sha512-ADcTjfx4wXkbXKDkrWcUsno17NMFLpHdEVE0CJmIkBNchpjnhbsaLGsDP+Cd6ExL/HMEmoISJBZtNvHFy/hheA==}
+    engines: {node: '>=20'}
+
   '@turystack/config@1.0.1':
     resolution: {integrity: sha512-DUEKqKeUalHaS7zJ1Le4a+LVq4u/NdWYjjOeO1RiwhiDxmh9tsusDjBrdYwU5+bvsR+jI2UxPK9bNsW3+YOGTg==}
+    engines: {node: '>=20'}
+
+  '@turystack/frontend-pattern@1.0.5':
+    resolution: {integrity: sha512-hXJYpNFHuN1aMakYm7fp62CxIgHm8TnEXU7dyen2yLr+SB/k6959zY2phTxCHdRMGJZFBaDlBxWyXZ3LIg5wjg==}
+    engines: {node: '>=20'}
+
+  '@turystack/frontend-primitives-pattern@1.0.4':
+    resolution: {integrity: sha512-TAs4btOhrEiJpNFoy3l5IVmw5yQK4v3Tp/6oC5NSwsbhbYppPtdOwtgPJR1UBlBIPWaQAbs+LSp2nbyJmGoUlQ==}
+    engines: {node: '>=20'}
+
+  '@turystack/harness@1.0.1':
+    resolution: {integrity: sha512-gBssjQtu1WFNkBYqSJZjeGUBsO1ut+VFrFe5hDUBCrklSM4NIWPlzIJvOOkWQjrKuohas6H9ciDPyQGJuNaVsQ==}
+    engines: {node: '>=20'}
+
+  '@turystack/modeling@1.0.1':
+    resolution: {integrity: sha512-AmKV5cjgcH8/UnFOnhP8LFdv2clbS4R7svUHBMzDxf5q8jgnNk6U5/FHQulldxxCazXkg94gSK5WZmp01vhUSw==}
+    engines: {node: '>=20'}
+
+  '@turystack/proof-mode@1.0.1':
+    resolution: {integrity: sha512-dvBPhSuHANkAVMJFYEFpaFWbpqO0jZF0uPPqTOra5LSuo7kVOoEt2raxtR5RWI148QjqIi0dCu8kBWnTMAxhLA==}
+    engines: {node: '>=20'}
+
+  '@turystack/spec-template@1.0.1':
+    resolution: {integrity: sha512-5I+fVMFsKxXHdrzc5jhW3kHOPGSX3tEfK5DWtf48CNCcAcRqCo4q8P618IVN5ouRp+5zUvPt0HCgyoCEqr/2lA==}
+    engines: {node: '>=20'}
+
+  '@turystack/uiux-template@1.0.1':
+    resolution: {integrity: sha512-IFn/PB/sekpN5hCIzCvokgeVFP2ICo5aaDgO62OFbUjhQCLFOArfbFtQkjHcgDGR1gBhrTUeSnsuaTTMVYNKUA==}
     engines: {node: '>=20'}
 
   '@tybys/wasm-util@0.10.3':
@@ -788,11 +851,29 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@turystack/architecture-pattern@2.0.0': {}
+
   '@turystack/backend-config@1.3.0':
     dependencies:
       '@turystack/config': 1.0.1
 
+  '@turystack/backend-pattern@2.0.3': {}
+
   '@turystack/config@1.0.1': {}
+
+  '@turystack/frontend-pattern@1.0.5': {}
+
+  '@turystack/frontend-primitives-pattern@1.0.4': {}
+
+  '@turystack/harness@1.0.1': {}
+
+  '@turystack/modeling@1.0.1': {}
+
+  '@turystack/proof-mode@1.0.1': {}
+
+  '@turystack/spec-template@1.0.1': {}
+
+  '@turystack/uiux-template@1.0.1': {}
 
   '@tybys/wasm-util@0.10.3':
     dependencies:

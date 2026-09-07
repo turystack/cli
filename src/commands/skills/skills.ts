@@ -48,7 +48,7 @@ type SkillPackage = {
   packageName: string
 }
 
-const SKILL_PACKAGE: Record<SkillId, SkillPackage> = {
+export const SKILL_PACKAGE: Record<SkillId, SkillPackage> = {
   architecture: {
     directory: 'architecture-pattern-skill',
     kind: 'law',
