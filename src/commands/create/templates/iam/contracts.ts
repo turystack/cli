@@ -133,13 +133,9 @@ export const permissionSchema = z.object({
 `,
     'src/entities/permission/permission.types.ts': `import type { z } from 'zod'
 
-import type {
-  audienceSchema,
-  permissionSchema,
-} from '@/entities/permission/permission.schema.js'
+import type { audienceSchema } from '@/entities/permission/permission.schema.js'
 
 export type Audience = z.infer<typeof audienceSchema>
-export type Permission = z.infer<typeof permissionSchema>
 `,
     'src/entities/role/role.schema.ts': `import { z } from 'zod'
 
@@ -160,14 +156,11 @@ export const roleSchema = z.object({
 `,
     'src/entities/role/role.types.ts': `import type { z } from 'zod'
 
-import type {
-  roleKindSchema,
-  roleSchema,
-} from '@/entities/role/role.schema.js'
+import type { roleKindSchema } from '@/entities/role/role.schema.js'
 
 export type RoleKind = z.infer<typeof roleKindSchema>
-export type Role = z.infer<typeof roleSchema>
 
+/** A role as the catalogue seeds it, before it has an id. */
 export type RoleSeed = {
   key: string
   kind: RoleKind
@@ -234,12 +227,8 @@ export const createWorkspaceSchema = z.object({
 `,
     'src/entities/workspace/workspace.types.ts': `import type { z } from 'zod'
 
-import type {
-  createWorkspaceSchema,
-  workspaceSchema,
-} from '@/entities/workspace/workspace.schema.js'
+import type { createWorkspaceSchema } from '@/entities/workspace/workspace.schema.js'
 
-export type Workspace = z.infer<typeof workspaceSchema>
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>
 `,
     'src/support/iam.contracts.ts': `export { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
@@ -279,6 +268,54 @@ export const iamExceptions = createExceptions((e) =>
 )
 
 export type IamExceptionCode = InferExceptionCodes<typeof iamExceptions>
+`,
+    'src/support/iam.hash.ts': `import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
+import { promisify } from 'node:util'
+
+const derive = promisify(scrypt) as (
+  secret: string,
+  salt: Buffer,
+  keylen: number,
+) => Promise<Buffer>
+
+const KEY_LENGTH = 64
+const SALT_LENGTH = 16
+
+/** Hashes a secret with a salt of its own, and returns the two together. */
+export async function hash(secret: string): Promise<string> {
+  const salt = randomBytes(SALT_LENGTH)
+  const key = await derive(secret, salt, KEY_LENGTH)
+
+  return \`\${salt.toString('hex')}:\${key.toString('hex')}\`
+}
+
+/** Compares a secret against a stored hash in time that does not depend on the answer. */
+export async function verify(
+  secret: string,
+  stored: string | null,
+): Promise<boolean> {
+  if (stored === null) {
+    return false
+  }
+
+  const [
+    salt,
+    key,
+  ] = stored.split(':')
+
+  if (!salt || !key) {
+    return false
+  }
+
+  const expected = Buffer.from(key, 'hex')
+  const actual = await derive(secret, Buffer.from(salt, 'hex'), KEY_LENGTH)
+
+  if (expected.length !== actual.length) {
+    return false
+  }
+
+  return timingSafeEqual(expected, actual)
+}
 `,
     'src/support/iam.permissions.ts': `import type { Audience } from '@/entities/permission/index.js'
 import type { RoleSeed } from '@/entities/role/index.js'

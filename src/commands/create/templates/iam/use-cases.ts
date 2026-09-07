@@ -19,18 +19,20 @@
 export function renderUseCases(scope: string): Record<string, string> {
   return {
     'src/use-cases/get-profile/get-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '${scope}/database'
-import { iamExceptions } from '@/support/iam.exceptions.js'
 
 import { MembershipRepository } from '@/entities/membership/index.js'
 import { OrganizationRepository } from '@/entities/organization/index.js'
 import { RoleRepository } from '@/entities/role/index.js'
 import { UserRepository } from '@/entities/user/index.js'
+import { WorkspaceRepository } from '@/entities/workspace/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 import type { GetProfileInput, Profile } from '@/use-cases/get-profile/get-profile.types.js'
 
 @Injectable()
 export class GetProfile {
   constructor(
+    @Inject(WorkspaceRepository)
+    private readonly workspaces: WorkspaceRepository,
     @Inject(UserRepository)
     private readonly users: UserRepository,
     @Inject(OrganizationRepository)
@@ -39,8 +41,6 @@ export class GetProfile {
     private readonly memberships: MembershipRepository,
     @Inject(RoleRepository)
     private readonly roles: RoleRepository,
-    @Inject(DatabaseService)
-    private readonly db: DatabaseService,
   ) {}
 
   async execute(input: GetProfileInput): Promise<Profile> {
@@ -78,9 +78,8 @@ export class GetProfile {
           roleId: membership.roleId,
         })
       : null
-    const workspaces = await this.db.workspace.findMany({
-      where: (fields, { eq }) =>
-        eq(fields.organizationId, input.organizationId),
+    const workspaces = await this.workspaces.findMany({
+      organizationId: input.organizationId,
     })
 
     return {
@@ -180,7 +179,7 @@ export const requestCodeSchema = z.object({
     'src/use-cases/request-code/request-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
 
-import { OtpRepository, generateCode, hashCode } from '@/entities/otp/index.js'
+import { Otp, OtpRepository } from '@/entities/otp/index.js'
 import { UserRepository } from '@/entities/user/index.js'
 import type { RequestCodeInput } from '@/use-cases/request-code/request-code.types.js'
 
@@ -208,11 +207,11 @@ export class RequestCode {
       }
     }
 
-    const code = generateCode()
+    const code = Otp.generateCode()
 
     await this.otps.create({
       channel: 'EMAIL',
-      codeHash: await hashCode(code),
+      codeHash: await Otp.hash(code),
       expiresAt: this.clock.in(CODE_TTL_MINUTES * 60_000),
       purpose: input.purpose,
       target: user.email,
@@ -227,7 +226,7 @@ export class RequestCode {
 `,
     'src/use-cases/request-code/request-code.types.ts': `import type { z } from 'zod'
 
-import type { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
+import { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
 
 export type RequestCodeInput = z.infer<typeof requestCodeSchema>
 `,
@@ -307,11 +306,12 @@ export class ResolveProfile implements IamProfileResolver {
     'src/use-cases/seed-iam/seed-iam.ts': `import { Inject, Injectable, Logger } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { Transactional } from '@turystack/nestjs-database'
-import { uuidv7 } from 'uuidv7'
 
 import { OrganizationRepository } from '@/entities/organization/index.js'
+import { PermissionRepository } from '@/entities/permission/index.js'
 import type { RoleSeed } from '@/entities/role/index.js'
 import { RoleRepository } from '@/entities/role/index.js'
+import { WorkspaceRepository } from '@/entities/workspace/index.js'
 import { PERMISSIONS, PLATFORM_ORGANIZATION_SLUG, SYSTEM_ROLES } from '@/support/iam.permissions.js'
 
 @Injectable()
@@ -319,6 +319,10 @@ export class SeedIam {
   private readonly logger = new Logger(SeedIam.name)
 
   constructor(
+    @Inject(PermissionRepository)
+    private readonly permissions: PermissionRepository,
+    @Inject(WorkspaceRepository)
+    private readonly workspaces: WorkspaceRepository,
     @Inject(OrganizationRepository)
     private readonly organizations: OrganizationRepository,
     @Inject(RoleRepository)
@@ -354,12 +358,11 @@ export class SeedIam {
       workspaceMode: 'MULTI',
     })
 
-    await this.db.workspace.create({
+    await this.workspaces.create({
       isDefault: true,
       name: 'Platform',
       organizationId: organization.organizationId,
       slug: 'default',
-      workspaceId: uuidv7(),
     })
   }
 
@@ -372,11 +375,10 @@ export class SeedIam {
         continue
       }
 
-      const created = await this.db.permission.create({
+      const created = await this.permissions.create({
         audience: permission.audience,
         description: permission.description,
         key: permission.key,
-        permissionId: uuidv7(),
       })
 
       byKey.set(created.key, created.permissionId)
@@ -445,12 +447,12 @@ export const signInWithCodeSchema = z.object({
 })
 `,
     'src/use-cases/sign-in-with-code/sign-in-with-code.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { iamExceptions } from '@/support/iam.exceptions.js'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 
 import { OtpRepository } from '@/entities/otp/index.js'
 import { User, UserRepository } from '@/entities/user/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 import type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/sign-in-with-code.types.js'
 
 @Injectable()
@@ -514,7 +516,7 @@ export class SignInWithCode {
 `,
     'src/use-cases/sign-in-with-code/sign-in-with-code.types.ts': `import type { z } from 'zod'
 
-import type { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
+import { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
 
 export type SignInWithCodeInput = z.infer<typeof signInWithCodeSchema>
 `,
@@ -534,7 +536,7 @@ export const signInWithPasswordSchema = z.object({
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.test.ts': `import { describe, expect, it, vi } from 'vitest'
 
-import { UserRepository, hashPassword, mockUser } from '@/entities/user/index.js'
+import { User, UserRepository, mockUser } from '@/entities/user/index.js'
 import { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
 
 const clock = {
@@ -558,7 +560,7 @@ function build(user: ReturnType<typeof mockUser> | null) {
 describe('SignInWithPassword', () => {
   it('answers with the person when the password matches', async () => {
     const user = mockUser({
-      passwordHash: await hashPassword('correct horse battery staple'),
+      passwordHash: await User.hash('correct horse battery staple'),
     })
     const { signIn, users } = build(user)
 
@@ -579,7 +581,7 @@ describe('SignInWithPassword', () => {
   it('refuses a wrong password without recording a sign-in', async () => {
     const { signIn, users } = build(
       mockUser({
-        passwordHash: await hashPassword('correct horse battery staple'),
+        passwordHash: await User.hash('correct horse battery staple'),
       }),
     )
 
@@ -596,7 +598,7 @@ describe('SignInWithPassword', () => {
     const missing = build(null)
     const wrong = build(
       mockUser({
-        passwordHash: await hashPassword('correct horse battery staple'),
+        passwordHash: await User.hash('correct horse battery staple'),
       }),
     )
 
@@ -633,10 +635,10 @@ describe('SignInWithPassword', () => {
 })
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { iamExceptions } from '@/support/iam.exceptions.js'
 import { ClockService } from '@turystack/nestjs-context'
 
 import { User, UserRepository } from '@/entities/user/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 import type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/sign-in-with-password.types.js'
 
 @Injectable()
@@ -676,7 +678,7 @@ export class SignInWithPassword {
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.types.ts': `import type { z } from 'zod'
 
-import type { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
+import { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
 
 export type SignInWithPasswordInput = z.infer<typeof signInWithPasswordSchema>
 `,
@@ -684,22 +686,23 @@ export type SignInWithPasswordInput = z.infer<typeof signInWithPasswordSchema>
 export { SignInWithProvider } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.js'
 `,
     'src/use-cases/sign-in-with-provider/sign-in-with-provider.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '${scope}/database'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
-import { uuidv7 } from 'uuidv7'
 
 import { MembershipRepository } from '@/entities/membership/index.js'
-import { OrganizationRepository, slugify } from '@/entities/organization/index.js'
+import { Organization, OrganizationRepository } from '@/entities/organization/index.js'
 import { RoleRepository } from '@/entities/role/index.js'
 import type { SocialProfile } from '@/entities/user/index.js'
 import { User, UserRepository } from '@/entities/user/index.js'
+import { WorkspaceRepository } from '@/entities/workspace/index.js'
 import { FOUNDER_ROLE_KEY } from '@/support/iam.permissions.js'
 import type { SignInWithProviderInput } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.types.js'
 
 @Injectable()
 export class SignInWithProvider {
   constructor(
+    @Inject(WorkspaceRepository)
+    private readonly workspaces: WorkspaceRepository,
     @Inject(UserRepository)
     private readonly users: UserRepository,
     @Inject(OrganizationRepository)
@@ -708,8 +711,6 @@ export class SignInWithProvider {
     private readonly memberships: MembershipRepository,
     @Inject(RoleRepository)
     private readonly roles: RoleRepository,
-    @Inject(DatabaseService)
-    private readonly db: DatabaseService,
     @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
@@ -764,16 +765,15 @@ export class SignInWithProvider {
     const organization = await this.organizations.create({
       kind: 'CUSTOMER',
       name,
-      slug: \`\${slugify(name)}-\${user.userId.slice(0, 8)}\`,
+      slug: \`\${Organization.slugify(name)}-\${user.userId.slice(0, 8)}\`,
       workspaceMode: 'SINGLE',
     })
 
-    await this.db.workspace.create({
+    await this.workspaces.create({
       isDefault: true,
       name,
       organizationId: organization.organizationId,
       slug: 'default',
-      workspaceId: uuidv7(),
     })
 
     if (founderRole) {
@@ -812,16 +812,15 @@ export const signUpSchema = z.object({
 })
 `,
     'src/use-cases/sign-up/sign-up.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '${scope}/database'
-import { iamExceptions } from '@/support/iam.exceptions.js'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
-import { uuidv7 } from 'uuidv7'
 
 import { MembershipRepository } from '@/entities/membership/index.js'
-import { OrganizationRepository, slugify } from '@/entities/organization/index.js'
+import { Organization, OrganizationRepository } from '@/entities/organization/index.js'
 import { RoleRepository } from '@/entities/role/index.js'
-import { User, UserRepository, hashPassword } from '@/entities/user/index.js'
+import { User, UserRepository } from '@/entities/user/index.js'
+import { WorkspaceRepository } from '@/entities/workspace/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 import { FOUNDER_ROLE_KEY } from '@/support/iam.permissions.js'
 import type { SignUpInput } from '@/use-cases/sign-up/sign-up.types.js'
 
@@ -830,6 +829,8 @@ const MAX_SLUG_ATTEMPTS = 50
 @Injectable()
 export class SignUp {
   constructor(
+    @Inject(WorkspaceRepository)
+    private readonly workspaces: WorkspaceRepository,
     @Inject(UserRepository)
     private readonly users: UserRepository,
     @Inject(OrganizationRepository)
@@ -838,8 +839,6 @@ export class SignUp {
     private readonly memberships: MembershipRepository,
     @Inject(RoleRepository)
     private readonly roles: RoleRepository,
-    @Inject(DatabaseService)
-    private readonly db: DatabaseService,
     @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
@@ -869,7 +868,7 @@ export class SignUp {
     const user = await this.users.create({
       email: input.email,
       name: input.name,
-      passwordHash: await hashPassword(input.password),
+      passwordHash: await User.hash(input.password),
     })
 
     const organization = await this.organizations.create({
@@ -879,12 +878,11 @@ export class SignUp {
       workspaceMode: 'SINGLE',
     })
 
-    await this.db.workspace.create({
+    await this.workspaces.create({
       isDefault: true,
       name: input.organizationName,
       organizationId: organization.organizationId,
       slug: 'default',
-      workspaceId: uuidv7(),
     })
 
     await this.memberships.create({
@@ -897,7 +895,7 @@ export class SignUp {
   }
 
   private async availableSlug(name: string): Promise<string> {
-    const base = slugify(name)
+    const base = Organization.slugify(name)
 
     for (let suffix = 0; suffix < MAX_SLUG_ATTEMPTS; suffix += 1) {
       const candidate = suffix === 0 ? base : \`\${base}-\${suffix}\`
@@ -916,7 +914,7 @@ export class SignUp {
 `,
     'src/use-cases/sign-up/sign-up.types.ts': `import type { z } from 'zod'
 
-import type { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
+import { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
 
 export type SignUpInput = z.infer<typeof signUpSchema>
 `,

@@ -159,8 +159,10 @@ export type { UpdateProfileInput } from '@/use-cases/update-profile/index.js'
     'src/support/iam.providers.ts': `import { MembershipRepository } from '@/entities/membership/index.js'
 import { OrganizationRepository } from '@/entities/organization/index.js'
 import { OtpRepository } from '@/entities/otp/index.js'
+import { PermissionRepository } from '@/entities/permission/index.js'
 import { RoleRepository } from '@/entities/role/index.js'
 import { UserRepository } from '@/entities/user/index.js'
+import { WorkspaceRepository } from '@/entities/workspace/index.js'
 import { GetProfile } from '@/use-cases/get-profile/index.js'
 import { RequestCode } from '@/use-cases/request-code/index.js'
 import { ResolveProfile } from '@/use-cases/resolve-profile/index.js'
@@ -176,6 +178,7 @@ export const IAM_PROVIDERS = [
   MembershipRepository,
   OrganizationRepository,
   OtpRepository,
+  PermissionRepository,
   RequestCode,
   ResolveProfile,
   RoleRepository,
@@ -186,6 +189,7 @@ export const IAM_PROVIDERS = [
   SignUp,
   UpdateProfile,
   UserRepository,
+  WorkspaceRepository,
 ]
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig([

@@ -225,11 +225,62 @@ export class OtpRepository {
   }
 }
 `,
+    'src/entities/permission/permission.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
+import { DatabaseService } from '${scope}/database'
+import { uuidv7 } from 'uuidv7'
+
+import { Permission } from '@/entities/permission/permission.entity.js'
+import type { Audience } from '@/entities/permission/permission.types.js'
+
+type Row = ConstructorParameters<typeof Permission>[0]
+
+@Injectable()
+export class PermissionRepository {
+  constructor(
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+  ) {}
+
+  async findMany(): Promise<Permission[]> {
+    const rows = await this.db.permission.findMany({})
+
+    return rows.map((row) => new Permission(row as Row))
+  }
+
+  async findByKeys(input: { keys: string[] }): Promise<Permission[]> {
+    if (input.keys.length === 0) {
+      return []
+    }
+
+    const rows = await this.db.permission.findMany({
+      where: (fields, { inArray }) => inArray(fields.key, input.keys),
+    })
+
+    return rows.map((row) => new Permission(row as Row))
+  }
+
+  async create(input: {
+    audience: Audience
+    description: string
+    key: string
+  }): Promise<Permission> {
+    const row = await this.db.permission.create({
+      audience: input.audience,
+      description: input.description,
+      key: input.key,
+      permissionId: uuidv7(),
+    })
+
+    return new Permission(row as Row)
+  }
+}
+`,
     'src/entities/role/role.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
-import type { Role, RoleKind } from '@/entities/role/role.types.js'
+import { Role } from '@/entities/role/role.entity.js'
+import type { RoleKind } from '@/entities/role/role.types.js'
 
 @Injectable()
 export class RoleRepository {
@@ -243,7 +294,7 @@ export class RoleRepository {
       where: (fields, { eq }) => eq(fields.roleId, input.roleId),
     })
 
-    return (row as Role | undefined) ?? null
+    return row ? new Role(row as ConstructorParameters<typeof Role>[0]) : null
   }
 
   async findByKey(input: {
@@ -260,7 +311,7 @@ export class RoleRepository {
         ),
     })
 
-    return (row as Role | undefined) ?? null
+    return row ? new Role(row as ConstructorParameters<typeof Role>[0]) : null
   }
 
   async findAvailable(input: {
@@ -274,7 +325,7 @@ export class RoleRepository {
         ),
     })
 
-    return rows as Role[]
+    return rows.map((row) => new Role(row as ConstructorParameters<typeof Role>[0]))
   }
 
   async create(input: {
@@ -293,7 +344,7 @@ export class RoleRepository {
       roleId: uuidv7(),
     })
 
-    return row as Role
+    return new Role(row as ConstructorParameters<typeof Role>[0])
   }
 
   async findPermissionKeys(input: { roleId: string }): Promise<string[]> {
@@ -428,6 +479,48 @@ export class UserRepository {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
+}
+`,
+    'src/entities/workspace/workspace.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
+import { DatabaseService } from '${scope}/database'
+import { uuidv7 } from 'uuidv7'
+
+import { Workspace } from '@/entities/workspace/workspace.entity.js'
+
+type Row = ConstructorParameters<typeof Workspace>[0]
+
+@Injectable()
+export class WorkspaceRepository {
+  constructor(
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+  ) {}
+
+  async findMany(input: { organizationId: string }): Promise<Workspace[]> {
+    const rows = await this.db.workspace.findMany({
+      where: (fields, { eq }) =>
+        eq(fields.organizationId, input.organizationId),
+    })
+
+    return rows.map((row) => new Workspace(row as Row))
+  }
+
+  async create(input: {
+    isDefault: boolean
+    name: string
+    organizationId: string
+    slug: string
+  }): Promise<Workspace> {
+    const row = await this.db.workspace.create({
+      isDefault: input.isDefault,
+      name: input.name,
+      organizationId: input.organizationId,
+      slug: input.slug,
+      workspaceId: uuidv7(),
+    })
+
+    return new Workspace(row as Row)
+  }
 }
 `,
   }

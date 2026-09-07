@@ -91,8 +91,25 @@ export function mockMembership(
 export { mockOrganization } from '@/entities/organization/organization.mock.js'
 export { OrganizationRepository } from '@/entities/organization/organization.repository.js'
 export { organizationKindSchema, organizationSchema, organizationStatusSchema, workspaceModeSchema } from '@/entities/organization/organization.schema.js'
-export { slugify } from '@/entities/organization/organization.slug.js'
 export type { OrganizationKind, OrganizationStatus, WorkspaceMode } from '@/entities/organization/organization.types.js'
+`,
+    'src/entities/organization/organization.entity.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { Organization } from '@/entities/organization/index.js'
+
+describe('Organization.slugify', () => {
+  it('lowercases and joins with a single dash', () => {
+    expect(Organization.slugify('Acme  Viagens')).toBe('acme-viagens')
+  })
+
+  it('strips the accents rather than the letters', () => {
+    expect(Organization.slugify('Operações Ltda')).toBe('operacoes-ltda')
+  })
+
+  it('never returns an empty slug, which no URL could carry', () => {
+    expect(Organization.slugify('!!!')).toBe('organization')
+  })
+})
 `,
     'src/entities/organization/organization.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
 import { Entity } from '@turystack/entity'
@@ -140,6 +157,17 @@ export class Organization {
     }
   }
 
+  static slugify(name: string): string {
+    const slug = name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+
+    return slug === '' ? 'organization' : slug
+  }
+
   checkIfCanAddWorkspace(): void {
     if (!this.allowsManyWorkspaces()) {
       throw new iamExceptions.singleWorkspaceOrganization()
@@ -169,96 +197,62 @@ export function mockOrganization(
   })
 }
 `,
-    'src/entities/organization/organization.slug.test.ts': `import { describe, expect, it } from 'vitest'
-
-import { slugify } from '@/entities/organization/organization.slug.js'
-
-describe('slugify', () => {
-  it('keeps the letters an accent was written on', () => {
-    expect(slugify('Operações')).toBe('operacoes')
-  })
-
-  it('collapses everything that cannot appear in a URL', () => {
-    expect(slugify('Acme  Viagens & Turismo!')).toBe('acme-viagens-turismo')
-  })
-
-  it('never answers with an empty string', () => {
-    expect(slugify('!!!')).toBe('organization')
-  })
-})
-`,
-    'src/entities/organization/organization.slug.ts': `export function slugify(name: string): string {
-  const slug = name
-    .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, '-')
-    .replace(/^-+|-+$/gu, '')
-
-  return slug === '' ? 'organization' : slug
-}
-`,
-    'src/entities/otp/index.ts': `export { CODE_LENGTH, generateCode, hashCode, verifyCode } from '@/entities/otp/otp.code.js'
-export { MAX_OTP_ATTEMPTS, Otp } from '@/entities/otp/otp.entity.js'
+    'src/entities/otp/index.ts': `export { CODE_LENGTH, MAX_OTP_ATTEMPTS, Otp } from '@/entities/otp/otp.entity.js'
 export { mockOtp } from '@/entities/otp/otp.mock.js'
 export { OtpRepository } from '@/entities/otp/otp.repository.js'
 export { otpChannelSchema, otpPurposeSchema, otpSchema } from '@/entities/otp/otp.schema.js'
 export type { OtpChannel, OtpPurpose } from '@/entities/otp/otp.types.js'
 `,
-    'src/entities/otp/otp.code.test.ts': `import { describe, expect, it } from 'vitest'
+    'src/entities/otp/otp.entity.test.ts': `import { describe, expect, it } from 'vitest'
 
-import { CODE_LENGTH, generateCode, hashCode, verifyCode } from '@/entities/otp/otp.code.js'
+import { CODE_LENGTH, mockOtp, Otp } from '@/entities/otp/index.js'
 
-describe('generateCode', () => {
-  it('is always the declared number of digits, including when it starts at zero', () => {
+describe('Otp.generateCode', () => {
+  it('is always the declared length, including when it starts with a zero', () => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
-      const code = generateCode()
-
-      expect(code).toHaveLength(CODE_LENGTH)
-      expect(code).toMatch(/^\\d+$/u)
+      expect(Otp.generateCode()).toHaveLength(CODE_LENGTH)
     }
+  })
+
+  it('is digits and nothing else', () => {
+    expect(Otp.generateCode()).toMatch(/^[0-9]+$/)
   })
 })
 
 describe('verifyCode', () => {
-  it('accepts the code it was made from and refuses another', async () => {
-    const stored = await hashCode('123456')
+  it('accepts the code the stored hash was made from', async () => {
+    const otp = mockOtp({
+      codeHash: await Otp.hash('123456'),
+    })
 
-    expect(await verifyCode('123456', stored)).toBe(true)
-    expect(await verifyCode('123457', stored)).toBe(false)
+    expect(await otp.verifyCode('123456')).toBe(true)
+  })
+
+  it('refuses a different code', async () => {
+    const otp = mockOtp({
+      codeHash: await Otp.hash('123456'),
+    })
+
+    expect(await otp.verifyCode('654321')).toBe(false)
   })
 })
 `,
-    'src/entities/otp/otp.code.ts': `import { randomInt } from 'node:crypto'
-
-import { hashPassword, verifyPassword } from '@/entities/user/index.js'
-
-export const CODE_LENGTH = 6
-
-export function generateCode(): string {
-  return String(randomInt(0, 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0')
-}
-
-export function hashCode(code: string): Promise<string> {
-  return hashPassword(code)
-}
-
-export function verifyCode(code: string, stored: string): Promise<boolean> {
-  return verifyPassword(code, stored)
-}
-`,
     'src/entities/otp/otp.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
+import { randomInt } from 'node:crypto'
+
 import { Entity } from '@turystack/entity'
+
+import { hash, verify } from '@/support/iam.hash.js'
 
 import type { z } from 'zod'
 
-import { verifyCode } from '@/entities/otp/otp.code.js'
 import { otpSchema } from '@/entities/otp/otp.schema.js'
 import type { OtpChannel, OtpPurpose } from '@/entities/otp/otp.types.js'
 
 type Row = z.infer<typeof otpSchema>
 
 export const MAX_OTP_ATTEMPTS = 5
+export const CODE_LENGTH = 6
 
 @Entity('iam.otp')
 export class Otp {
@@ -304,7 +298,15 @@ export class Otp {
   }
 
   verifyCode(code: string): Promise<boolean> {
-    return verifyCode(code, this.codeHash)
+    return verify(code, this.codeHash)
+  }
+
+  static generateCode(): string {
+    return String(randomInt(0, 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0')
+  }
+
+  static hash(code: string): Promise<string> {
+    return hash(code)
   }
 }
 `,
@@ -331,26 +333,182 @@ export function mockOtp(overrides: Partial<Row> = {}): Otp {
   })
 }
 `,
-    'src/entities/permission/index.ts': `export { audienceSchema, permissionSchema } from '@/entities/permission/permission.schema.js'
-export type { Audience, Permission } from '@/entities/permission/permission.types.js'
+    'src/entities/permission/index.ts': `export { Permission } from '@/entities/permission/permission.entity.js'
+export { mockPermission } from '@/entities/permission/permission.mock.js'
+export { PermissionRepository } from '@/entities/permission/permission.repository.js'
+export { audienceSchema, permissionSchema } from '@/entities/permission/permission.schema.js'
+export type { Audience } from '@/entities/permission/permission.types.js'
 `,
-    'src/entities/role/index.ts': `export { RoleRepository } from '@/entities/role/role.repository.js'
+    'src/entities/permission/permission.entity.ts': `import { Entity } from '@turystack/entity'
+
+import type { z } from 'zod'
+
+import { permissionSchema } from '@/entities/permission/permission.schema.js'
+import type { Audience } from '@/entities/permission/permission.types.js'
+
+type Row = z.infer<typeof permissionSchema>
+
+@Entity('iam.permission')
+export class Permission {
+  readonly permissionId: string
+  readonly key: string
+  readonly audience: Audience
+  readonly description: string
+
+  constructor(record: Row) {
+    this.permissionId = record.permissionId
+    this.key = record.key
+    this.audience = record.audience
+    this.description = record.description
+  }
+
+  isFor(audience: Audience): boolean {
+    return this.audience === audience
+  }
+}
+`,
+    'src/entities/permission/permission.mock.ts': `import type { z } from 'zod'
+
+import { Permission } from '@/entities/permission/permission.entity.js'
+import { permissionSchema } from '@/entities/permission/permission.schema.js'
+
+type Row = z.infer<typeof permissionSchema>
+
+/** Permission as a test writes it: a valid row, with the fields a case cares about replaced. */
+export function mockPermission(overrides: Partial<Row> = {}): Permission {
+  return new Permission({
+    audience: 'ADMIN',
+    description: 'Read the organization and its settings.',
+    key: 'admin:organization.read',
+    permissionId: '01930f48-9c31-7a44-8b70-4f1d2e6a3c00',
+    ...overrides,
+  })
+}
+`,
+    'src/entities/role/index.ts': `export { Role } from '@/entities/role/role.entity.js'
+export { mockRole } from '@/entities/role/role.mock.js'
+export { RoleRepository } from '@/entities/role/role.repository.js'
 export { roleKindSchema, roleSchema } from '@/entities/role/role.schema.js'
-export type { Role, RoleKind, RoleSeed } from '@/entities/role/role.types.js'
+export type { RoleKind, RoleSeed } from '@/entities/role/role.types.js'
+`,
+    'src/entities/role/role.entity.ts': `import { Entity } from '@turystack/entity'
+
+import type { z } from 'zod'
+
+import { roleSchema } from '@/entities/role/role.schema.js'
+import type { RoleKind } from '@/entities/role/role.types.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
+
+type Row = z.infer<typeof roleSchema>
+
+@Entity('iam.role')
+export class Role {
+  readonly roleId: string
+  readonly organizationId: string | null
+  readonly kind: RoleKind
+  readonly key: string
+  readonly name: string
+  readonly description: string | null
+
+  constructor(record: Row) {
+    this.roleId = record.roleId
+    this.organizationId = record.organizationId
+    this.kind = record.kind
+    this.key = record.key
+    this.name = record.name
+    this.description = record.description
+  }
+
+  isEnvironment(): boolean {
+    return this.organizationId === null
+  }
+
+  isBackoffice(): boolean {
+    return this.kind === 'BACKOFFICE'
+  }
+
+  belongsTo(organizationId: string): boolean {
+    return this.isEnvironment() || this.organizationId === organizationId
+  }
+
+  checkIfAvailableTo(organizationId: string): void {
+    if (!this.belongsTo(organizationId)) {
+      throw new iamExceptions.outOfScope()
+    }
+  }
+}
+`,
+    'src/entities/role/role.mock.ts': `import type { z } from 'zod'
+
+import { Role } from '@/entities/role/role.entity.js'
+import { roleSchema } from '@/entities/role/role.schema.js'
+
+type Row = z.infer<typeof roleSchema>
+
+/** Role as a test writes it: a valid row, with the fields a case cares about replaced. */
+export function mockRole(overrides: Partial<Row> = {}): Role {
+  return new Role({
+    description: 'Everything inside the organization.',
+    key: 'OWNER',
+    kind: 'ORGANIZATION',
+    name: 'Owner',
+    organizationId: null,
+    roleId: '01930f49-1a55-7e20-b6f3-8d2c4e7a1b00',
+    ...overrides,
+  })
+}
 `,
     'src/entities/user/index.ts': `export { User } from '@/entities/user/user.entity.js'
 export { mockUser } from '@/entities/user/user.mock.js'
-export { hashPassword, verifyPassword } from '@/entities/user/user.password.js'
 export { UserRepository } from '@/entities/user/user.repository.js'
 export { socialProfileSchema, socialProviderSchema, userSchema } from '@/entities/user/user.schema.js'
 export type { SocialProfile, SocialProvider } from '@/entities/user/user.types.js'
 `,
+    'src/entities/user/user.entity.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { mockUser, User } from '@/entities/user/index.js'
+
+describe('User.hash', () => {
+  it('never produces the same hash twice for the same password', async () => {
+    const first = await User.hash('correct horse battery staple')
+    const second = await User.hash('correct horse battery staple')
+
+    expect(first).not.toBe(second)
+  })
+})
+
+describe('verifyCredential', () => {
+  it('accepts the password the stored hash was made from', async () => {
+    const password = 'correct horse battery staple'
+    const user = mockUser({
+      passwordHash: await User.hash(password),
+    })
+
+    expect(await user.verifyCredential(password)).toBe(true)
+  })
+
+  it('refuses a different password', async () => {
+    const user = mockUser({
+      passwordHash: await User.hash('correct horse battery staple'),
+    })
+
+    expect(await user.verifyCredential('correct horse battery stapler')).toBe(
+      false,
+    )
+  })
+
+  it('refuses when no password is set, rather than throwing', async () => {
+    expect(await mockUser().verifyCredential('anything')).toBe(false)
+  })
+})
+`,
     'src/entities/user/user.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
 import { Entity } from '@turystack/entity'
 
+import { hash, verify } from '@/support/iam.hash.js'
+
 import type { z } from 'zod'
 
-import { verifyPassword } from '@/entities/user/user.password.js'
 import { userSchema } from '@/entities/user/user.schema.js'
 
 type Row = z.infer<typeof userSchema>
@@ -399,7 +557,11 @@ export class User {
   }
 
   verifyCredential(password: string): Promise<boolean> {
-    return verifyPassword(password, this.passwordHash)
+    return verify(password, this.passwordHash)
+  }
+
+  static hash(password: string): Promise<string> {
+    return hash(password)
   }
 }
 `,
@@ -427,99 +589,66 @@ export function mockUser(overrides: Partial<Row> = {}): User {
   })
 }
 `,
-    'src/entities/user/user.password.test.ts': `import { describe, expect, it } from 'vitest'
-
-import { hashPassword, verifyPassword } from '@/entities/user/user.password.js'
-
-describe('hashPassword', () => {
-  it('never produces the same hash twice for the same password', async () => {
-    const first = await hashPassword('correct horse battery staple')
-    const second = await hashPassword('correct horse battery staple')
-
-    expect(first).not.toBe(second)
-  })
-
-  it('stores the salt beside the key', async () => {
-    expect(
-      (await hashPassword('correct horse battery staple')).split(':'),
-    ).toHaveLength(2)
-  })
-})
-
-describe('verifyPassword', () => {
-  it('accepts the password it was made from', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-
-    expect(await verifyPassword('correct horse battery staple', stored)).toBe(
-      true,
-    )
-  })
-
-  it('refuses a different password', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-
-    expect(await verifyPassword('correct horse battery stapler', stored)).toBe(
-      false,
-    )
-  })
-
-  it('refuses when no password is set, rather than throwing', async () => {
-    expect(await verifyPassword('anything', null)).toBe(false)
-  })
-
-  it('refuses a stored value that is not a hash', async () => {
-    expect(await verifyPassword('anything', 'not-a-hash')).toBe(false)
-  })
-})
+    'src/entities/workspace/index.ts': `export { Workspace } from '@/entities/workspace/workspace.entity.js'
+export { mockWorkspace } from '@/entities/workspace/workspace.mock.js'
+export { WorkspaceRepository } from '@/entities/workspace/workspace.repository.js'
+export { createWorkspaceSchema, workspaceSchema } from '@/entities/workspace/workspace.schema.js'
+export type { CreateWorkspaceInput } from '@/entities/workspace/workspace.types.js'
 `,
-    'src/entities/user/user.password.ts': `import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
-import { promisify } from 'node:util'
+    'src/entities/workspace/workspace.entity.ts': `import { Entity } from '@turystack/entity'
 
-const derive = promisify(scrypt) as (
-  password: string,
-  salt: Buffer,
-  keylen: number,
-) => Promise<Buffer>
+import type { z } from 'zod'
 
-const KEY_LENGTH = 64
-const SALT_LENGTH = 16
+import { workspaceSchema } from '@/entities/workspace/workspace.schema.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(SALT_LENGTH)
-  const key = await derive(password, salt, KEY_LENGTH)
+type Row = z.infer<typeof workspaceSchema>
 
-  return \`\${salt.toString('hex')}:\${key.toString('hex')}\`
-}
+@Entity('iam.workspace')
+export class Workspace {
+  readonly workspaceId: string
+  readonly organizationId: string
+  readonly name: string
+  readonly slug: string
+  readonly isDefault: boolean
 
-export async function verifyPassword(
-  password: string,
-  stored: string | null,
-): Promise<boolean> {
-  if (stored === null) {
-    return false
+  constructor(record: Row) {
+    this.workspaceId = record.workspaceId
+    this.organizationId = record.organizationId
+    this.name = record.name
+    this.slug = record.slug
+    this.isDefault = record.isDefault
   }
 
-  const [
-    salt,
-    key,
-  ] = stored.split(':')
-
-  if (!salt || !key) {
-    return false
+  belongsTo(organizationId: string): boolean {
+    return this.organizationId === organizationId
   }
 
-  const expected = Buffer.from(key, 'hex')
-  const actual = await derive(password, Buffer.from(salt, 'hex'), KEY_LENGTH)
-
-  if (expected.length !== actual.length) {
-    return false
+  checkIfBelongsTo(organizationId: string): void {
+    if (!this.belongsTo(organizationId)) {
+      throw new iamExceptions.outOfScope()
+    }
   }
-
-  return timingSafeEqual(expected, actual)
 }
 `,
-    'src/entities/workspace/index.ts': `export { createWorkspaceSchema, workspaceSchema } from '@/entities/workspace/workspace.schema.js'
-export type { CreateWorkspaceInput, Workspace } from '@/entities/workspace/workspace.types.js'
+    'src/entities/workspace/workspace.mock.ts': `import type { z } from 'zod'
+
+import { Workspace } from '@/entities/workspace/workspace.entity.js'
+import { workspaceSchema } from '@/entities/workspace/workspace.schema.js'
+
+type Row = z.infer<typeof workspaceSchema>
+
+/** Workspace as a test writes it: a valid row, with the fields a case cares about replaced. */
+export function mockWorkspace(overrides: Partial<Row> = {}): Workspace {
+  return new Workspace({
+    isDefault: true,
+    name: 'Acme Viagens',
+    organizationId: '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00',
+    slug: 'default',
+    workspaceId: '01930f4b-7e02-7b13-9c48-1d5a8f3e2b00',
+    ...overrides,
+  })
+}
 `,
   }
 }
