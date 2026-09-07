@@ -199,6 +199,7 @@ export async function runAddAudience(
           kind: 'audience',
           name: options.name,
           openApiUrl: `${apiBaseUrl}/api/v1/${options.name}/openapi`,
+          port: options.port,
         }),
       )
     },

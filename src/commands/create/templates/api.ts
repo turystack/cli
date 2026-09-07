@@ -369,12 +369,61 @@ export class AuthController {
 }
 
 function renderAudienceController(audience: string): string {
-  return `import { Auth } from '@turystack/nestjs-iam'
+  return `import { Body, Inject } from '@nestjs/common'
+import { GetProfile, UpdateProfile } from '@repo/iam'
+import { PersonNameSchema } from '@turystack/fields'
+import {
+  Auth,
+  AuthenticatedProfile,
+  type IamProfile,
+} from '@turystack/nestjs-iam'
 import { Controller, Route } from '@turystack/nestjs-server'
 import { z } from 'zod'
 
-const responseSchema = z.object({
-  message: z.string(),
+/**
+ * The profile: who is signed in, where, and what they may do.
+ *
+ * The scope is never read from the request. It comes from the authenticated
+ * profile the guard resolved, so this surface cannot be pointed at another
+ * organization by anyone holding a session for this one.
+ */
+const profileResponse = z.object({
+  user: z.object({
+    userId: z.string(),
+    name: z.string(),
+    email: z.string(),
+    emailVerified: z.boolean(),
+    phone: z.string().nullable(),
+    phoneVerified: z.boolean(),
+    locale: z.string(),
+  }),
+  organization: z.object({
+    organizationId: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    workspaceMode: z.string(),
+    status: z.string(),
+  }),
+  workspaces: z.array(
+    z.object({
+      workspaceId: z.string(),
+      name: z.string(),
+      slug: z.string(),
+      isDefault: z.boolean(),
+    }),
+  ),
+  role: z
+    .object({
+      roleId: z.string(),
+      key: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
+  permissions: z.array(z.string()),
+})
+
+const updateProfileBody = z.object({
+  name: PersonNameSchema(),
 })
 
 @Controller({
@@ -382,20 +431,59 @@ const responseSchema = z.object({
   tag: '${titleCase(audience)}',
 })
 export class ${pascalCase(audience)}Controller {
+  constructor(
+    @Inject(GetProfile)
+    private readonly getProfile: GetProfile,
+    @Inject(UpdateProfile)
+    private readonly updateProfile: UpdateProfile,
+  ) {}
+
   @Auth()
   @Route({
     description:
-      'Temporary scaffold route. It is authenticated, so it also proves the session reaches this surface.',
+      'The signed-in person, the organization they are acting for, and the permissions they hold there.',
     method: 'GET',
+    path: 'profile',
     responses: {
-      200: responseSchema,
+      200: profileResponse,
     },
-    summary: 'Get API surface status',
+    summary: 'Get the profile',
   })
-  getStatus() {
-    return {
-      message: '${audience} API is running',
-    }
+  async profile(
+    @AuthenticatedProfile() profile: IamProfile,
+  ): Promise<z.infer<typeof profileResponse>> {
+    return this.getProfile.execute({
+      organizationId: profile.organizationId,
+      userId: profile.userId,
+    })
+  }
+
+  @Auth()
+  @Route({
+    description: 'Changes the parts of the profile a person owns.',
+    method: 'PATCH',
+    parameters: {
+      body: updateProfileBody,
+    },
+    path: 'profile',
+    responses: {
+      200: profileResponse,
+    },
+    summary: 'Update the profile',
+  })
+  async update(
+    @AuthenticatedProfile() profile: IamProfile,
+    @Body() body: z.infer<typeof updateProfileBody>,
+  ): Promise<z.infer<typeof profileResponse>> {
+    await this.updateProfile.execute({
+      name: body.name,
+      userId: profile.userId,
+    })
+
+    return this.getProfile.execute({
+      organizationId: profile.organizationId,
+      userId: profile.userId,
+    })
   }
 }
 `
@@ -460,6 +548,7 @@ export function generateApiFiles(context: ApiTemplateContext): GeneratedFiles {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
         check: 'biome check .',
         'check:fix': 'biome check --write .',
+        'db:seed': 'tsx src/seed.ts',
         dev: 'tsx watch src/main.ts',
         format: 'biome format --write .',
         lint: 'biome lint .',
@@ -531,6 +620,9 @@ const complete = {
   IAM_SECRET: 'k'.repeat(32),
   NODE_ENV: 'test',
   PORT: '3000',
+${context.audiences
+  .map((audience) => `  ${originEnvName(audience)}: 'http://localhost:5173',`)
+  .join('\n')}
 }
 
 describe('configSchema', () => {
@@ -560,6 +652,40 @@ describe('configSchema', () => {
     'src/config.schema.ts': renderConfigSchema(context),
     'src/controllers/auth/auth.controller.ts': renderAuthController(),
     'src/main.ts': renderMain(context),
+    'src/seed.ts': `import { NestFactory } from '@nestjs/core'
+import { SeedIam } from '@repo/iam'
+
+import { AppModule } from '@/app.module.js'
+
+/**
+ * Brings the database in line with the catalogue in the source.
+ *
+ * It boots the application context without listening on a port: the seed needs
+ * the same providers the API has — the database, the config, the repositories —
+ * and building a second wiring for it is how the two drift.
+ *
+ * Idempotent, so it runs on every deploy. Until it has, \`OWNER\` does not
+ * exist and signing up is refused rather than creating an organization whose
+ * owner holds no permissions.
+ */
+async function seed(): Promise<void> {
+  const context = await NestFactory.createApplicationContext(AppModule, {
+    logger: [
+      'error',
+      'warn',
+      'log',
+    ],
+  })
+
+  try {
+    await context.get(SeedIam).execute()
+  } finally {
+    await context.close()
+  }
+}
+
+await seed()
+`,
     'tsconfig.build.json': `${JSON.stringify(
       {
         compilerOptions: {

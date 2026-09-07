@@ -18,6 +18,14 @@ export type WebTemplateContext = {
   kind: 'audience' | 'auth'
   name: string
   openApiUrl: string
+  /**
+   * Where `pnpm dev` serves it.
+   *
+   * It is part of the context rather than derived from the kind because two
+   * product applications served on the same port is a collision the person
+   * meets on their second `pnpm dev`, not on the first.
+   */
+  port: number
 }
 
 export const CALLBACK_PATH = '/callback'
@@ -555,7 +563,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: ${isAuth ? 3100 : 3001},
+    port: ${context.port},
   },
 })
 `,
@@ -687,24 +695,132 @@ describe('signIn', () => {
   }
 
   files['src/auth/.gitkeep'] = ''
-  files['src/routes/index.tsx'] =
-    `import { createFileRoute } from '@tanstack/react-router'
+  files['src/api/profile.ts'] =
+    `const apiBaseUrl = import.meta.env.VITE_API_BASE_URL as string
 
-import { Flex, Typography } from '@turystack/react-web'
+/**
+ * The signed-in person, as this surface sees them.
+ *
+ * No scope is sent: the API reads it from the session cookie, which is the
+ * only scope it trusts. \`credentials: 'include'\` is what carries that cookie.
+ */
+export async function fetchProfile(): Promise<unknown> {
+  const response = await fetch(
+    new URL('api/v1/${context.audience}/profile', apiBaseUrl).toString(),
+    {
+      credentials: 'include',
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error('Could not read the profile.')
+  }
+
+  return response.json()
+}
+`
+  files['src/routes/index.tsx'] =
+    `import { useQuery } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { Card, Flex, Loader, Typography } from '@turystack/react-web'
+
+import { fetchProfile } from '@/api/profile'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
 })
 
+/**
+ * The profile, raw.
+ *
+ * Getting here means the whole chain worked: the browser had no session, the
+ * authorization server sent it to the sign-in application, that application
+ * proved who the person is, and the code it came back with was exchanged for
+ * the cookie this request just used.
+ */
 function HomePage() {
+  const profile = useQuery({
+    queryFn: fetchProfile,
+    queryKey: [
+      'profile',
+    ],
+  })
+
   return (
-    <Flex align="center" justify="center" minHeight="screen">
-      <Typography component="h1" size="3xl" weight="bold">
-        Welcome Turystack
+    <Flex direction="col" gap="md">
+      <Typography component="h1" size="2xl" weight="bold">
+        ${context.audience} · profile
       </Typography>
+      {profile.isPending ? (
+        <Loader />
+      ) : (
+        <Card>
+          <Typography component="div" size="sm">
+            <pre>{JSON.stringify(profile.data ?? profile.error, null, 2)}</pre>
+          </Typography>
+        </Card>
+      )}
     </Flex>
   )
 }
+`
+  files['src/api/profile.test.ts'] =
+    `import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { fetchProfile } from '@/api/profile'
+
+/**
+ * The one call this application makes before it can render anything.
+ *
+ * What matters is the cookie: the API reads the scope from the session, so a
+ * request that forgets \`credentials: 'include'\` is anonymous and answers 401
+ * — which looks exactly like being signed out.
+ */
+beforeEach(() => {
+  vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:3000')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
+})
+
+describe('fetchProfile', () => {
+  it('sends the session cookie and answers with the profile', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          user: {
+            name: 'Ana Ribeiro',
+          },
+        }),
+      ok: true,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await fetchProfile()).toEqual({
+      user: {
+        name: 'Ana Ribeiro',
+      },
+    })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+
+    expect(url).toBe('http://localhost:3000/api/v1/${context.audience}/profile')
+    expect(init.credentials).toBe('include')
+  })
+
+  it('raises when the session is not accepted, rather than rendering nothing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+      }),
+    )
+
+    await expect(fetchProfile()).rejects.toThrow('Could not read the profile.')
+  })
+})
 `
   // The route exists so the router does not 404 on the way back from sign-in.
   // What happens here is AuthProvider's job: it sees the code in the URL,

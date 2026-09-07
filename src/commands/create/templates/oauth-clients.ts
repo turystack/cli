@@ -42,7 +42,11 @@ export function generateOAuthClientsFiles(context: {
           types: './dist/index.d.ts',
         },
         // Source, not dist: a bundler compiles it, and the API never imports it.
-        './react': './src/react/index.tsx',
+        './react': {
+          default: './dist/react/index.js',
+          import: './dist/react/index.js',
+          types: './dist/react/index.d.ts',
+        },
       },
       main: './dist/index.js',
       name: '@repo/oauth-clients',
@@ -595,14 +599,20 @@ export function takeVerifier(): {
     'tsconfig.build.json': `${JSON.stringify(
       {
         compilerOptions: {
+          // The web config this extends is written for an application Vite
+          // compiles, so it sets `noEmit` and allows `.ts` in a specifier.
+          // A project the solution references may do neither: the reference
+          // exists precisely so `tsc -b` produces its `dist`.
+          allowImportingTsExtensions: false,
           composite: true,
+          noEmit: false,
           tsBuildInfoFile: './dist/.tsbuildinfo',
         },
         exclude: [
           'node_modules',
           'dist',
-          'src/react',
           '**/*.test.ts',
+          '**/*.test.tsx',
         ],
         extends: './tsconfig.json',
       },
@@ -615,38 +625,28 @@ export function takeVerifier(): {
           declaration: true,
           declarationMap: true,
           outDir: './dist',
-          rootDir: './src',
-        },
-        exclude: [
-          'node_modules',
-          'dist',
-          'src/react',
-        ],
-        extends: '@turystack/backend-config/tsconfig.api.json',
-        // The React half is excluded here and checked by tsconfig.react.json:
-        // it needs DOM types the API has no reason to carry.
-        include: [
-          'src/**/*.ts',
-        ],
-      },
-      null,
-      2,
-    )}\n`,
-    'tsconfig.react.json': `${JSON.stringify(
-      {
-        compilerOptions: {
-          // The React half is typechecked by its own config, and it imports
-          // `@/clients.js` like everything else here.
+          // Every import here is `@/…`, like everywhere else, and `tsc-alias`
+          // rewrites it in the emitted JavaScript.
           paths: {
             '@/*': [
               './src/*',
             ],
           },
+          rootDir: './src',
         },
+        exclude: [
+          'node_modules',
+          'dist',
+        ],
+        // The whole package is compiled with the web config, both halves.
+        // The data half needs no DOM and does not mind having it; the React
+        // half cannot be consumed as source, because then its imports would be
+        // resolved by the application's tsconfig, where `@/` means the
+        // application's own `src`.
         extends: '@turystack/frontend-config/tsconfig.web.json',
         include: [
-          'src/clients.ts',
-          'src/react',
+          'src/**/*.ts',
+          'src/**/*.tsx',
         ],
       },
       null,

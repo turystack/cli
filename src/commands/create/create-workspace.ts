@@ -61,6 +61,25 @@ export const AUTH_APP_NAME = 'auth'
 export const API_PORT = 3000
 export const AUTH_APP_PORT = 3100
 
+/**
+ * The two product applications a repository is born with.
+ *
+ * `admin` is the customer's own surface, scoped to one organization; `backoffice`
+ * is the operator's, and it reads across them. They are two applications rather
+ * than two routes because a cross-tenant read must not share a bundle, a route
+ * tree or a session shape with a tenant-scoped one.
+ */
+export const PRODUCT_APPS = [
+  {
+    name: 'admin',
+    port: 3200,
+  },
+  {
+    name: 'backoffice',
+    port: 3300,
+  },
+] as const
+
 const ALL_SKILLS: SkillId[] = [
   'harness',
   'proof-mode',
@@ -222,7 +241,7 @@ export async function runCreateWorkspace(
         [
           `apps/${API_NAME}`,
           generateApiFiles({
-            audiences: [],
+            audiences: PRODUCT_APPS.map((app) => app.name),
             dependencies: {
               '@repo/database': 'workspace:*',
               '@repo/exceptions': 'workspace:*',
@@ -262,8 +281,39 @@ export async function runCreateWorkspace(
             kind: 'auth',
             name: AUTH_APP_NAME,
             openApiUrl: `${apiBaseUrl}/api/v1/auth/openapi`,
+            port: AUTH_APP_PORT,
           }),
         ],
+        ...PRODUCT_APPS.map(
+          (
+            app,
+          ): [
+            string,
+            GeneratedFiles,
+          ] => [
+            `apps/${app.name}`,
+            generateWebFiles({
+              apiBaseUrl,
+              audience: app.name,
+              dependencies: {
+                '@repo/oauth-clients': 'workspace:*',
+                '@repo/ui': 'workspace:*',
+                ...WEB_DEPENDENCIES,
+                ...turystack(`apps/${app.name}`, WEB_TURYSTACK),
+              },
+              devDependencies: {
+                ...WEB_DEV,
+                ...turystack(`apps/${app.name}`, [
+                  '@turystack/frontend-config',
+                ]),
+              },
+              kind: 'audience',
+              name: app.name,
+              openApiUrl: `${apiBaseUrl}/api/v1/${app.name}/openapi`,
+              port: app.port,
+            }),
+          ],
+        ),
       ]
 
       for (const [directory, files] of tree) {
@@ -312,6 +362,7 @@ export async function runCreateWorkspace(
           [
             'packages/oauth-clients',
             `apps/${AUTH_APP_NAME}`,
+            ...PRODUCT_APPS.map((app) => `apps/${app.name}`),
           ],
         ],
       ] as const) {

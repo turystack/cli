@@ -131,6 +131,9 @@ volumes:
         'check:fix': 'biome check --write .',
         'db:generate': 'pnpm --filter ./packages/database db:generate',
         'db:migrate': 'pnpm --filter ./packages/database db:migrate',
+        // The catalogue in the source, written into the database. Runs after
+        // the migration and before the first sign-up, which needs `OWNER`.
+        'db:seed': 'pnpm --filter ./apps/api db:seed',
         'db:studio': 'pnpm --filter ./packages/database db:studio',
         dev: 'pnpm -r --parallel --if-present run dev',
         'docker:down': 'docker compose down',
