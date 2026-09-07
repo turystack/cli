@@ -97,7 +97,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/nestjs-server': {
     directory: 'nestjs-server',
-    version: '1.0.1',
+    version: '1.1.0',
   },
   '@turystack/nestjs-social-auth': {
     directory: 'nestjs-social-auth',

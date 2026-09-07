@@ -471,6 +471,13 @@ export class ${pascalCase(audience)}Controller {
 }
 
 function renderMain(context: ApiTemplateContext): string {
+  const origins = [
+    "    config.get('AUTH_APP_URL'),",
+    ...context.audiences.map(
+      (audience) => `    config.get('${originEnvName(audience)}'),`,
+    ),
+    '    // turystack:audience-cors',
+  ].join('\n')
   const projects = [
     'auth',
     ...context.audiences,
@@ -491,6 +498,11 @@ import { Server } from '@turystack/nestjs-server'
 import { AppModule } from './app.module.js'
 
 await Server.create(AppModule, (config) => ({
+  cors: {
+    origins: [
+${origins}
+    ],
+  },
   description: '${titleCase(context.project)}',
   docs: {
     provider: 'scalar',

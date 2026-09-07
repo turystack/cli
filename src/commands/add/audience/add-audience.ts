@@ -138,6 +138,11 @@ export async function runAddAudience(
       )
       await insertBefore(
         resolve(api, 'src/main.ts'),
+        '    // turystack:audience-cors',
+        `    config.get('${originEnvName(options.name)}'),`,
+      )
+      await insertBefore(
+        resolve(api, 'src/main.ts'),
         '    // turystack:audience-projects',
         `    {
       name: '${options.name}',
