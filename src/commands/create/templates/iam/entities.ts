@@ -16,6 +16,69 @@ export { MembershipRepository } from '@/entities/membership/membership.repositor
 export { membershipSchema, membershipStatusSchema } from '@/entities/membership/membership.schema.js'
 export type { MembershipStatus } from '@/entities/membership/membership.types.js'
 `,
+    'src/entities/membership/membership.entity.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { mockMembership } from '@/entities/membership/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
+
+describe('isActive', () => {
+  it('is true while the membership is active', () => {
+    expect(mockMembership().isActive()).toBe(true)
+  })
+
+  it('is false once it is suspended', () => {
+    expect(
+      mockMembership({
+        status: 'SUSPENDED',
+      }).isActive(),
+    ).toBe(false)
+  })
+})
+
+describe('coversWholeOrganization', () => {
+  it('is true when the membership names no workspace', () => {
+    expect(mockMembership().coversWholeOrganization()).toBe(true)
+  })
+
+  it('is false when it is scoped to one', () => {
+    expect(
+      mockMembership({
+        workspaceId: '01930f4b-7e02-7b13-9c48-1d5a8f3e2b00',
+      }).coversWholeOrganization(),
+    ).toBe(false)
+  })
+})
+
+describe('checkIfActive', () => {
+  it('passes an active membership through', () => {
+    expect(() => mockMembership().checkIfActive()).not.toThrow()
+  })
+
+  it('refuses a suspended one with the code the client branches on', () => {
+    expect(() =>
+      mockMembership({
+        status: 'SUSPENDED',
+      }).checkIfActive(),
+    ).toThrow(iamExceptions.membershipSuspended)
+  })
+})
+
+describe('checkOrganization', () => {
+  it('accepts the organization the membership belongs to', () => {
+    const membership = mockMembership()
+
+    expect(() =>
+      membership.checkOrganization(membership.organizationId),
+    ).not.toThrow()
+  })
+
+  it('refuses another organization, which is the whole point of a scope', () => {
+    expect(() =>
+      mockMembership().checkOrganization('01930f00-0000-7000-8000-000000000000'),
+    ).toThrow(iamExceptions.outOfScope)
+  })
+})
+`,
     'src/entities/membership/membership.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
 import { Entity } from '@turystack/entity'
 
@@ -95,7 +158,11 @@ export type { OrganizationKind, OrganizationStatus, WorkspaceMode } from '@/enti
 `,
     'src/entities/organization/organization.entity.test.ts': `import { describe, expect, it } from 'vitest'
 
-import { Organization } from '@/entities/organization/index.js'
+import {
+  mockOrganization,
+  Organization,
+} from '@/entities/organization/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 
 describe('Organization.slugify', () => {
   it('lowercases and joins with a single dash', () => {
@@ -108,6 +175,51 @@ describe('Organization.slugify', () => {
 
   it('never returns an empty slug, which no URL could carry', () => {
     expect(Organization.slugify('!!!')).toBe('organization')
+  })
+})
+
+describe('checkIfActive', () => {
+  it('passes an active organization through', () => {
+    expect(() => mockOrganization().checkIfActive()).not.toThrow()
+  })
+
+  it('refuses a suspended one', () => {
+    expect(() =>
+      mockOrganization({
+        status: 'SUSPENDED',
+      }).checkIfActive(),
+    ).toThrow(iamExceptions.organizationSuspended)
+  })
+})
+
+describe('checkIfCanAddWorkspace', () => {
+  it('allows it when the organization keeps many', () => {
+    expect(() =>
+      mockOrganization({
+        workspaceMode: 'MULTI',
+      }).checkIfCanAddWorkspace(),
+    ).not.toThrow()
+  })
+
+  /**
+   * A single-workspace organization with two workspaces is a scope that means
+   * nothing, so this refuses before the row exists.
+   */
+  it('refuses on an organization that keeps one', () => {
+    expect(() => mockOrganization().checkIfCanAddWorkspace()).toThrow(
+      iamExceptions.singleWorkspaceOrganization,
+    )
+  })
+})
+
+describe('isPlatform', () => {
+  it('separates the platform from a customer', () => {
+    expect(mockOrganization().isPlatform()).toBe(false)
+    expect(
+      mockOrganization({
+        kind: 'PLATFORM',
+      }).isPlatform(),
+    ).toBe(true)
   })
 })
 `,
@@ -205,7 +317,13 @@ export type { OtpChannel, OtpPurpose } from '@/entities/otp/otp.types.js'
 `,
     'src/entities/otp/otp.entity.test.ts': `import { describe, expect, it } from 'vitest'
 
-import { CODE_LENGTH, mockOtp, Otp } from '@/entities/otp/index.js'
+import {
+  CODE_LENGTH,
+  MAX_OTP_ATTEMPTS,
+  mockOtp,
+  Otp,
+} from '@/entities/otp/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 
 describe('Otp.generateCode', () => {
   it('is always the declared length, including when it starts with a zero', () => {
@@ -234,6 +352,70 @@ describe('verifyCode', () => {
     })
 
     expect(await otp.verifyCode('654321')).toBe(false)
+  })
+})
+
+const NOW = new Date('2026-01-01T00:00:00.000Z')
+
+describe('isSpent', () => {
+  it('is false for a fresh code', () => {
+    expect(mockOtp().isSpent()).toBe(false)
+  })
+
+  it('is true once the code was consumed', () => {
+    expect(
+      mockOtp({
+        consumedAt: NOW,
+      }).isSpent(),
+    ).toBe(true)
+  })
+
+  /**
+   * The ceiling is what turns a six-digit code into something worth using: a
+   * code with no attempt limit is a number anyone can enumerate.
+   */
+  it('is true once the attempts reach the ceiling', () => {
+    expect(
+      mockOtp({
+        attempts: MAX_OTP_ATTEMPTS,
+      }).isSpent(),
+    ).toBe(true)
+  })
+})
+
+describe('hasExpired', () => {
+  it('is false while the expiry is ahead', () => {
+    expect(mockOtp().hasExpired(NOW)).toBe(false)
+  })
+
+  it('is true at the expiry, not only after it', () => {
+    expect(
+      mockOtp({
+        expiresAt: NOW,
+      }).hasExpired(NOW),
+    ).toBe(true)
+  })
+})
+
+describe('checkIfUsable', () => {
+  it('passes a fresh, unexpired code', () => {
+    expect(() => mockOtp().checkIfUsable(NOW)).not.toThrow()
+  })
+
+  it('refuses a spent one', () => {
+    expect(() =>
+      mockOtp({
+        consumedAt: NOW,
+      }).checkIfUsable(NOW),
+    ).toThrow(iamExceptions.invalidCode)
+  })
+
+  it('refuses an expired one', () => {
+    expect(() =>
+      mockOtp({
+        expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+      }).checkIfUsable(NOW),
+    ).toThrow(iamExceptions.invalidCode)
   })
 })
 `,
@@ -339,6 +521,32 @@ export { PermissionRepository } from '@/entities/permission/permission.repositor
 export { audienceSchema, permissionSchema } from '@/entities/permission/permission.schema.js'
 export type { Audience } from '@/entities/permission/permission.types.js'
 `,
+    'src/entities/permission/permission.entity.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { mockPermission } from '@/entities/permission/index.js'
+
+describe('isFor', () => {
+  it('is true for the audience the key is prefixed with', () => {
+    expect(
+      mockPermission({
+        audience: 'ADMIN',
+      }).isFor('ADMIN'),
+    ).toBe(true)
+  })
+
+  /**
+   * The prefix is what keeps an admin permission from satisfying a backoffice
+   * check, so this is the assertion the whole scheme rests on.
+   */
+  it('is false for another audience', () => {
+    expect(
+      mockPermission({
+        audience: 'ADMIN',
+      }).isFor('BACKOFFICE'),
+    ).toBe(false)
+  })
+})
+`,
     'src/entities/permission/permission.entity.ts': `import { Entity } from '@turystack/entity'
 
 import type { z } from 'zod'
@@ -390,6 +598,66 @@ export { mockRole } from '@/entities/role/role.mock.js'
 export { RoleRepository } from '@/entities/role/role.repository.js'
 export { roleKindSchema, roleSchema } from '@/entities/role/role.schema.js'
 export type { RoleKind, RoleSeed } from '@/entities/role/role.types.js'
+`,
+    'src/entities/role/role.entity.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { mockRole } from '@/entities/role/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
+
+const ORGANIZATION = '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00'
+
+describe('isEnvironment', () => {
+  it('is true for a role the product ships, which belongs to no organization', () => {
+    expect(mockRole().isEnvironment()).toBe(true)
+  })
+
+  it('is false for a role an organization created', () => {
+    expect(
+      mockRole({
+        organizationId: ORGANIZATION,
+      }).isEnvironment(),
+    ).toBe(false)
+  })
+})
+
+describe('isBackoffice', () => {
+  it('is true only for the backoffice kind', () => {
+    expect(
+      mockRole({
+        kind: 'BACKOFFICE',
+      }).isBackoffice(),
+    ).toBe(true)
+    expect(mockRole().isBackoffice()).toBe(false)
+  })
+})
+
+describe('belongsTo', () => {
+  it('lets every organization hold a role the product ships', () => {
+    expect(mockRole().belongsTo(ORGANIZATION)).toBe(true)
+  })
+
+  it('keeps a role an organization created to that organization', () => {
+    expect(
+      mockRole({
+        organizationId: ORGANIZATION,
+      }).belongsTo('01930f00-0000-7000-8000-000000000000'),
+    ).toBe(false)
+  })
+})
+
+describe('checkIfAvailableTo', () => {
+  it('passes a role the organization may hold', () => {
+    expect(() => mockRole().checkIfAvailableTo(ORGANIZATION)).not.toThrow()
+  })
+
+  it('refuses one belonging to another organization', () => {
+    expect(() =>
+      mockRole({
+        organizationId: ORGANIZATION,
+      }).checkIfAvailableTo('01930f00-0000-7000-8000-000000000000'),
+    ).toThrow(iamExceptions.outOfScope)
+  })
+})
 `,
     'src/entities/role/role.entity.ts': `import { Entity } from '@turystack/entity'
 
@@ -467,6 +735,7 @@ export type { SocialProfile, SocialProvider } from '@/entities/user/user.types.j
     'src/entities/user/user.entity.test.ts': `import { describe, expect, it } from 'vitest'
 
 import { mockUser, User } from '@/entities/user/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 
 describe('User.hash', () => {
   it('never produces the same hash twice for the same password', async () => {
@@ -499,6 +768,54 @@ describe('verifyCredential', () => {
 
   it('refuses when no password is set, rather than throwing', async () => {
     expect(await mockUser().verifyCredential('anything')).toBe(false)
+  })
+})
+
+describe('the verification flags', () => {
+  it('reads a verified address from the stamp, not from a boolean', () => {
+    expect(mockUser().isEmailVerified()).toBe(false)
+    expect(
+      mockUser({
+        emailVerifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }).isEmailVerified(),
+    ).toBe(true)
+  })
+
+  it('reads a verified phone the same way', () => {
+    expect(mockUser().isPhoneVerified()).toBe(false)
+    expect(
+      mockUser({
+        phoneVerifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }).isPhoneVerified(),
+    ).toBe(true)
+  })
+})
+
+describe('checkIfCanSignInWithPassword', () => {
+  it('passes a person who set one', async () => {
+    const user = mockUser({
+      passwordHash: await User.hash('correct horse battery staple'),
+    })
+
+    expect(() => user.checkIfCanSignInWithPassword()).not.toThrow()
+  })
+
+  /**
+   * Someone who only ever signed in with a provider has no password, and the
+   * answer must not distinguish that from a wrong one.
+   */
+  it('refuses a person who never set one, with the same code as a wrong password', () => {
+    expect(() => mockUser().checkIfCanSignInWithPassword()).toThrow(
+      iamExceptions.invalidCredentials,
+    )
+  })
+
+  it('refuses a stored value that is not a hash, rather than throwing', async () => {
+    expect(
+      await mockUser({
+        passwordHash: 'not-a-hash',
+      }).verifyCredential('anything'),
+    ).toBe(false)
   })
 })
 `,
@@ -594,6 +911,41 @@ export { mockWorkspace } from '@/entities/workspace/workspace.mock.js'
 export { WorkspaceRepository } from '@/entities/workspace/workspace.repository.js'
 export { createWorkspaceSchema, workspaceSchema } from '@/entities/workspace/workspace.schema.js'
 export type { CreateWorkspaceInput } from '@/entities/workspace/workspace.types.js'
+`,
+    'src/entities/workspace/workspace.entity.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { mockWorkspace } from '@/entities/workspace/index.js'
+import { iamExceptions } from '@/support/iam.exceptions.js'
+
+describe('belongsTo', () => {
+  it('is true for the organization that owns it', () => {
+    const workspace = mockWorkspace()
+
+    expect(workspace.belongsTo(workspace.organizationId)).toBe(true)
+  })
+
+  it('is false for any other', () => {
+    expect(
+      mockWorkspace().belongsTo('01930f00-0000-7000-8000-000000000000'),
+    ).toBe(false)
+  })
+})
+
+describe('checkIfBelongsTo', () => {
+  it('passes its own organization through', () => {
+    const workspace = mockWorkspace()
+
+    expect(() =>
+      workspace.checkIfBelongsTo(workspace.organizationId),
+    ).not.toThrow()
+  })
+
+  it('refuses another one rather than reading across the boundary', () => {
+    expect(() =>
+      mockWorkspace().checkIfBelongsTo('01930f00-0000-7000-8000-000000000000'),
+    ).toThrow(iamExceptions.outOfScope)
+  })
+})
 `,
     'src/entities/workspace/workspace.entity.ts': `import { Entity } from '@turystack/entity'
 

@@ -478,6 +478,28 @@ pnpm --filter ./apps/${context.name} api:generate
   reservations: tracked and empty until a real concern arrives.
 `,
     'src/~sdk/.gitkeep': '',
+    'src/api/denial.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { outcomeConfig } from './denial.js'
+
+/**
+ * The reasons a product gives for refusing something belong in one place, so a
+ * screen never invents its own wording for a code the API already named.
+ */
+describe('denied', () => {
+  it('has no reason for a code the catalogue does not carry', () => {
+    expect(
+      outcomeConfig.denied?.({
+        code: 'iam.out_of_scope',
+      }),
+    ).toBeUndefined()
+  })
+
+  it('has no reason for something that is not an exception at all', () => {
+    expect(outcomeConfig.denied?.(new Error('network'))).toBeUndefined()
+    expect(outcomeConfig.denied?.(null)).toBeUndefined()
+  })
+})`,
     'src/api/denial.ts': `import type { DataOutcomeConfig } from '@turystack/react-hooks'
 
 const DENIAL_REASONS: Record<string, string> = {}
@@ -604,18 +626,29 @@ export default web({
 `,
   }
 
+  if (!isAuth) {
+    files['src/routes/callback.test.tsx'] =
+      `import { describe, expect, it } from 'vitest'
+
+import { Route } from './callback.js'
+
+/**
+ * The browser lands here with the authorization code, and the provider above it
+ * is what exchanges it. This screen renders nothing on purpose: anything it
+ * painted would be seen for the length of one exchange and then replaced.
+ */
+describe('the callback route', () => {
+  it('renders nothing, because the provider is what reads the code', () => {
+    expect(Route.options.component?.({} as never)).toBeNull()
+  })
+})`
+  }
+
   if (isAuth) {
     files['src/api/auth.ts'] = renderAuthApiClient(scope)
     files['src/api/auth.test.ts'] =
       `import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * The three calls that exist before the generated SDK does.
- *
- * The base URL is parsed at module load, so every case imports the module
- * fresh after stubbing the environment — importing it once at the top would
- * bind the first stub and make the rest of the file lie.
- */
 async function loadClient() {
   vi.resetModules()
 
@@ -651,7 +684,10 @@ describe('signIn', () => {
 
     expect(result.redirectTo).toBe('http://localhost:5173/callback?code=abc')
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ]
 
     expect(url).toBe('http://localhost:3000/api/v1/auth/sign-in')
     expect(init.credentials).toBe('include')
@@ -700,7 +736,103 @@ describe('signIn', () => {
     ).rejects.toThrow('Could not complete this request.')
   })
 })
-`
+
+describe('signUp', () => {
+  it('posts to the sign-up route and answers with where to send the browser', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          redirectTo: 'http://localhost:5173/callback?code=abc',
+        }),
+      ok: true,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { signUp } = await loadClient()
+    const result = await signUp({
+      email: 'person@acme.test',
+      name: 'Ana Ribeiro',
+      organizationName: 'Acme',
+      password: 'correct horse battery staple',
+      tx: 'tx_1',
+    })
+
+    expect(result.redirectTo).toContain('/callback')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/auth/sign-up')
+  })
+})
+
+describe('signInWithProvider', () => {
+  it('posts the provider token to the social route', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          redirectTo: 'http://localhost:5173/callback?code=abc',
+        }),
+      ok: true,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { signInWithProvider } = await loadClient()
+    await signInWithProvider({
+      idToken: 'token',
+      provider: 'GOOGLE',
+      tx: 'tx_1',
+    })
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/auth/social')
+  })
+})
+
+describe('a request the API refuses', () => {
+  /**
+   * The message the API sends is the one the person reads. Replacing it with a
+   * generic one here is how a product tells someone "something went wrong"
+   * when the API had already said what.
+   */
+  it('raises the message the API sent', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: () =>
+          Promise.resolve({
+            message: 'This sign-in request expired.',
+          }),
+        ok: false,
+      }),
+    )
+
+    const { signIn } = await loadClient()
+
+    await expect(
+      signIn({
+        email: 'person@acme.test',
+        password: 'correct horse battery staple',
+        tx: 'tx_1',
+      }),
+    ).rejects.toThrow('This sign-in request expired.')
+  })
+
+  it('falls back to its own message when the body is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: () => Promise.reject(new Error('not json')),
+        ok: false,
+      }),
+    )
+
+    const { signIn } = await loadClient()
+
+    await expect(
+      signIn({
+        email: 'person@acme.test',
+        password: 'correct horse battery staple',
+        tx: 'tx_1',
+      }),
+    ).rejects.toThrow('Could not complete this request.')
+  })
+})`
     files['src/routes/index.tsx'] = renderSignInRoute(context)
 
     return files

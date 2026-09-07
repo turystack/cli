@@ -314,6 +314,94 @@ export async function verify(
   return timingSafeEqual(expected, actual)
 }
 `,
+    'src/support/iam.mock.ts': `type Row = Record<string, unknown>
+
+type Table = {
+  create: (value: Row) => Promise<Row>
+  findFirst: (query?: unknown) => Promise<Row | undefined>
+  findMany: (query?: unknown) => Promise<Row[]>
+  updateById: (id: string, value: Row) => Promise<Row>
+}
+
+/**
+ * The database a repository test writes against.
+ *
+ * Rows in, rows out. The predicate a repository builds is drizzle's to
+ * evaluate, and a double that pretended to evaluate it would be asserting its
+ * own implementation rather than the repository's. What a repository adds is
+ * the shape it writes and the entity it hydrates, and that is what a test can
+ * see from here.
+ */
+/** Column names, as a predicate sees them. */
+const FIELDS = new Proxy(
+  {},
+  {
+    get: (_target, name: string) => name,
+  },
+)
+
+/** Drizzle's operators, as a predicate calls them. */
+const OPERATORS = new Proxy(
+  {},
+  {
+    get: () => (...args: unknown[]) => args,
+  },
+)
+
+/**
+ * Runs the predicate the repository built.
+ *
+ * Evaluating it is drizzle's job and this double does not attempt it. Calling
+ * it is still worth doing: a predicate that names a column that does not exist,
+ * or that throws, is a query that would fail against a real database, and
+ * nothing else in a unit test would notice.
+ */
+function read(query: unknown): void {
+  const clauses = (query ?? {}) as Record<string, unknown>
+
+  for (const name of [
+    'where',
+    'orderBy',
+  ]) {
+    const clause = clauses[name]
+
+    if (typeof clause === 'function') {
+      clause(FIELDS, OPERATORS)
+    }
+  }
+}
+
+export function mockDatabase(tables: Record<string, Row[]> = {}) {
+  const table = (name: string): Table => {
+    const rows = tables[name] ?? []
+
+    return {
+      create: async (value) => value,
+      findFirst: async (query) => {
+        read(query)
+
+        return rows[0]
+      },
+      findMany: async (query) => {
+        read(query)
+
+        return rows
+      },
+      updateById: async (_id, value) => ({
+        ...(rows[0] ?? {}),
+        ...value,
+      }),
+    }
+  }
+
+  return new Proxy(
+    {},
+    {
+      get: (_target, name: string) => table(name),
+    },
+  )
+}
+`,
     'src/support/iam.permissions.ts': `import type { Audience } from '@/entities/permission/index.js'
 import type { RoleSeed } from '@/entities/role/index.js'
 
@@ -428,6 +516,194 @@ export const SYSTEM_ROLES: RoleSeed[] = [
 export const PLATFORM_ORGANIZATION_SLUG = 'platform'
 
 export const FOUNDER_ROLE_KEY = 'OWNER'
+`,
+    'src/support/iam.providers.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { IAM_PROVIDERS } from '@/support/iam.providers.js'
+import * as domain from '@/index.js'
+
+/**
+ * A use case added here and forgotten in the list is a provider Nest cannot
+ * resolve, and it fails at boot with a message about a parameter index. This is
+ * that mistake, caught where it is cheap.
+ */
+describe('IAM_PROVIDERS', () => {
+  const registered = new Set(IAM_PROVIDERS.map((provider) => provider.name))
+
+  it('registers every operation the package exports', () => {
+    const operations = Object.entries(domain)
+      .filter(
+        ([name, value]) =>
+          typeof value === 'function' && /^[A-Z]/.test(name) && name !== 'Error',
+      )
+      .map(([name]) => name)
+
+    expect(operations.filter((name) => !registered.has(name))).toEqual([])
+  })
+
+  it('registers each provider once', () => {
+    expect(registered.size).toBe(IAM_PROVIDERS.length)
+  })
+})
+`,
+    'src/support/iam.seed.test.ts': `import { describe, expect, it, vi } from 'vitest'
+
+import type { DatabaseService } from '${scope}/database'
+
+import type { OrganizationRepository } from '@/entities/organization/index.js'
+import { mockOrganization } from '@/entities/organization/index.js'
+import type { PermissionRepository } from '@/entities/permission/index.js'
+import { mockPermission } from '@/entities/permission/index.js'
+import type { RoleRepository } from '@/entities/role/index.js'
+import { mockRole } from '@/entities/role/index.js'
+import type { WorkspaceRepository } from '@/entities/workspace/index.js'
+import { mockWorkspace } from '@/entities/workspace/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+import { PERMISSIONS, SYSTEM_ROLES } from '@/support/iam.permissions.js'
+import { SeedIam } from '@/support/iam.seed.js'
+
+vi.mock(import('@turystack/nestjs-database'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  Transactional:
+    () =>
+    (
+      _target: object,
+      _propertyKey: string | symbol,
+      descriptor: PropertyDescriptor,
+    ) =>
+      descriptor,
+}))
+
+function seeder(options: {
+  platform?: boolean
+  roles?: boolean
+  stored?: Record<string, unknown>[]
+} = {}) {
+  const permissions = {
+    create: vi
+      .fn()
+      .mockImplementation(async (input: { key: string }) =>
+        mockPermission({
+          key: input.key,
+        }),
+      ),
+  } as unknown as PermissionRepository
+  const workspaces = {
+    create: vi.fn().mockResolvedValue(mockWorkspace()),
+  } as unknown as WorkspaceRepository
+  const organizations = {
+    create: vi.fn().mockResolvedValue(mockOrganization()),
+    findBySlug: vi
+      .fn()
+      .mockResolvedValue(options.platform ? mockOrganization() : null),
+  } as unknown as OrganizationRepository
+  const roles = {
+    create: vi.fn().mockResolvedValue(mockRole()),
+    findByKey: vi.fn().mockResolvedValue(options.roles ? mockRole() : null),
+    grant: vi.fn().mockResolvedValue(undefined),
+  } as unknown as RoleRepository
+
+  return {
+    organizations,
+    permissions,
+    roles,
+    seed: new SeedIam(
+      permissions,
+      workspaces,
+      organizations,
+      roles,
+      mockDatabase({
+        permission: options.stored ?? [],
+      }) as DatabaseService,
+    ),
+    workspaces,
+  }
+}
+
+describe('execute', () => {
+  it('creates the platform organization and its workspace on an empty database', async () => {
+    const { organizations, seed, workspaces } = seeder()
+
+    await seed.execute()
+
+    expect(organizations.create).toHaveBeenCalled()
+    expect(workspaces.create).toHaveBeenCalled()
+  })
+
+  /**
+   * It runs on every deploy, so running twice has to be the same as running
+   * once — otherwise the second deploy is the one that breaks.
+   */
+  it('leaves the platform alone when it is already there', async () => {
+    const { organizations, seed, workspaces } = seeder({
+      platform: true,
+    })
+
+    await seed.execute()
+
+    expect(organizations.create).not.toHaveBeenCalled()
+    expect(workspaces.create).not.toHaveBeenCalled()
+  })
+
+  it('writes every permission the catalogue declares', async () => {
+    const { permissions, seed } = seeder()
+
+    await seed.execute()
+
+    expect(vi.mocked(permissions.create).mock.calls).toHaveLength(
+      PERMISSIONS.length,
+    )
+  })
+
+  it('writes only what the database is missing', async () => {
+    const { permissions, seed } = seeder({
+      stored: PERMISSIONS.map((permission, index) => ({
+        key: permission.key,
+        permissionId: \`stored-\${index}\`,
+      })),
+    })
+
+    await seed.execute()
+
+    expect(permissions.create).not.toHaveBeenCalled()
+  })
+
+  it('writes every role the product ships', async () => {
+    const { roles, seed } = seeder()
+
+    await seed.execute()
+
+    expect(vi.mocked(roles.create).mock.calls).toHaveLength(SYSTEM_ROLES.length)
+  })
+
+  it('leaves a role that is already there alone', async () => {
+    const { roles, seed } = seeder({
+      roles: true,
+    })
+
+    await seed.execute()
+
+    expect(roles.create).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A permission the table holds and the code does not means people may still
+   * be granted something nothing implements. The seed cannot fix it, so it
+   * says so.
+   */
+  it('reports a permission the database holds and the catalogue does not', async () => {
+    const { seed } = seeder({
+      stored: [
+        {
+          key: 'admin:something.removed',
+          permissionId: 'stored-0',
+        },
+      ],
+    })
+
+    await expect(seed.execute()).resolves.toBeUndefined()
+  })
+})
 `,
     'src/support/iam.seed.ts': `import { Inject, Injectable, Logger } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'

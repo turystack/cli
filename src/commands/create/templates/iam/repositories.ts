@@ -14,6 +14,119 @@
  */
 export function renderRepositories(scope: string): Record<string, string> {
   return {
+    'src/entities/membership/membership.repository.test.ts': `import { describe, expect, it } from 'vitest'
+
+import type { DatabaseService } from '${scope}/database'
+
+import {
+  MembershipRepository,
+  mockMembership,
+} from '@/entities/membership/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+
+const ORGANIZATION = '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00'
+const USER = '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00'
+
+const row = {
+  membershipId: '01930f4c-2b90-7c81-84d2-3a7e1c9f5b00',
+  organizationId: ORGANIZATION,
+  roleId: '01930f49-1a55-7e20-b6f3-8d2c4e7a1b00',
+  status: 'ACTIVE',
+  userId: USER,
+  workspaceId: null,
+}
+
+function repository(tables: Record<string, Record<string, unknown>[]> = {}) {
+  return new MembershipRepository(mockDatabase(tables) as DatabaseService)
+}
+
+describe('find', () => {
+  it('hydrates the row into the entity', async () => {
+    expect(
+      await repository({
+        membership: [row],
+      }).find({
+        membershipId: row.membershipId,
+      }),
+    ).toEqual(mockMembership())
+  })
+
+  it('answers null when there is no row', async () => {
+    expect(
+      await repository().find({
+        membershipId: row.membershipId,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('findMany', () => {
+  it('hydrates every row', async () => {
+    const memberships = await repository({
+      membership: [row],
+    }).findMany({
+      userId: USER,
+    })
+
+    expect(memberships).toEqual([mockMembership()])
+  })
+
+  it('is an empty list when the person belongs nowhere', async () => {
+    expect(
+      await repository().findMany({
+        userId: USER,
+      }),
+    ).toEqual([])
+  })
+})
+
+describe('findMembers', () => {
+  it('hydrates the members of one organization', async () => {
+    expect(
+      await repository({
+        membership: [row],
+      }).findMembers({
+        organizationId: ORGANIZATION,
+      }),
+    ).toEqual([mockMembership()])
+  })
+})
+
+describe('create', () => {
+  it('writes an active membership, because a suspended one is a later decision', async () => {
+    const membership = await repository().create({
+      organizationId: ORGANIZATION,
+      roleId: row.roleId,
+      userId: USER,
+    })
+
+    expect(membership.isActive()).toBe(true)
+  })
+
+  it('covers the whole organization when no workspace is named', async () => {
+    const membership = await repository().create({
+      organizationId: ORGANIZATION,
+      roleId: row.roleId,
+      userId: USER,
+    })
+
+    expect(membership.coversWholeOrganization()).toBe(true)
+  })
+})
+
+describe('findMany, scoped', () => {
+  it('narrows to one organization when it is given', async () => {
+    expect(
+      await repository({
+        membership: [row],
+      }).findMany({
+        organizationId: ORGANIZATION,
+        userId: USER,
+      }),
+    ).toEqual([mockMembership()])
+  })
+})
+`,
     'src/entities/membership/membership.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
@@ -85,6 +198,108 @@ export class MembershipRepository {
   }
 }
 `,
+    'src/entities/organization/organization.repository.test.ts': `import { describe, expect, it } from 'vitest'
+
+import type { DatabaseService } from '${scope}/database'
+
+import {
+  mockOrganization,
+  OrganizationRepository,
+} from '@/entities/organization/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+
+const row = {
+  kind: 'CUSTOMER',
+  name: 'Acme Viagens',
+  organizationId: '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00',
+  slug: 'acme-viagens',
+  status: 'ACTIVE',
+  workspaceMode: 'SINGLE',
+}
+
+function repository(tables: Record<string, Record<string, unknown>[]> = {}) {
+  return new OrganizationRepository(mockDatabase(tables) as DatabaseService)
+}
+
+describe('find', () => {
+  it('hydrates the row into the entity', async () => {
+    expect(
+      await repository({
+        organization: [row],
+      }).find({
+        organizationId: row.organizationId,
+      }),
+    ).toEqual(mockOrganization())
+  })
+
+  it('answers null when there is no row', async () => {
+    expect(
+      await repository().find({
+        organizationId: row.organizationId,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('findBySlug', () => {
+  it('hydrates the row into the entity', async () => {
+    expect(
+      await repository({
+        organization: [row],
+      }).findBySlug({
+        slug: row.slug,
+      }),
+    ).toEqual(mockOrganization())
+  })
+
+  /**
+   * Sign-up asks this to find out whether a slug is free, so the answer for a
+   * slug nobody holds has to be null rather than a throw.
+   */
+  it('answers null for a slug nobody holds', async () => {
+    expect(
+      await repository().findBySlug({
+        slug: 'free',
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('findMany', () => {
+  it('hydrates every row', async () => {
+    expect(await repository({ organization: [row] }).findMany({})).toEqual([
+      mockOrganization(),
+    ])
+  })
+})
+
+describe('create', () => {
+  it('writes an active organization with the kind and mode it was given', async () => {
+    const organization = await repository().create({
+      kind: 'PLATFORM',
+      name: 'Platform',
+      slug: 'platform',
+      workspaceMode: 'MULTI',
+    })
+
+    expect(organization.isActive()).toBe(true)
+    expect(organization.isPlatform()).toBe(true)
+    expect(organization.allowsManyWorkspaces()).toBe(true)
+  })
+})
+
+describe('findMany, scoped', () => {
+  it('narrows to one organization when it is given', async () => {
+    expect(
+      await repository({
+        organization: [row],
+      }).findMany({
+        organizationId: row.organizationId,
+      }),
+    ).toEqual([mockOrganization()])
+  })
+})
+`,
     'src/entities/organization/organization.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
@@ -150,6 +365,96 @@ export class OrganizationRepository {
     return new Organization(row as Row)
   }
 }
+`,
+    'src/entities/otp/otp.repository.test.ts': `import { describe, expect, it } from 'vitest'
+
+import type { DatabaseService } from '${scope}/database'
+
+import { mockOtp, OtpRepository } from '@/entities/otp/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+
+const USER = '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00'
+
+const row = {
+  attempts: 0,
+  channel: 'EMAIL',
+  codeHash: 'salt:key',
+  consumedAt: null,
+  expiresAt: new Date('2100-01-01T00:00:00.000Z'),
+  otpId: '01930f50-1c88-7d09-b2a7-5e6f7a8b9c00',
+  purpose: 'SIGN_IN',
+  target: 'ana@acme.test',
+  userId: USER,
+}
+
+function repository(tables: Record<string, Record<string, unknown>[]> = {}) {
+  return new OtpRepository(mockDatabase(tables) as DatabaseService)
+}
+
+describe('findPending', () => {
+  it('hydrates the row into the entity', async () => {
+    expect(
+      await repository({
+        otp: [row],
+      }).findPending({
+        purpose: 'SIGN_IN',
+        userId: USER,
+      }),
+    ).toEqual(mockOtp())
+  })
+
+  it('answers null when nothing is pending', async () => {
+    expect(
+      await repository().findPending({
+        purpose: 'SIGN_IN',
+        userId: USER,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('create', () => {
+  it('starts the attempt count at zero, which is what the ceiling counts from', async () => {
+    const otp = await repository().create({
+      channel: 'EMAIL',
+      codeHash: 'salt:key',
+      expiresAt: new Date('2100-01-01T00:00:00.000Z'),
+      purpose: 'SIGN_IN',
+      target: 'ana@acme.test',
+      userId: USER,
+    })
+
+    // \`consumedAt\` is the database's default, not the repository's business,
+    // so it is not asserted here — the count is what this method decides.
+    expect(otp.attempts).toBe(0)
+  })
+})
+
+describe('consume', () => {
+  it('records when the code was spent', async () => {
+    await expect(
+      repository({
+        otp: [row],
+      }).consume({
+        at: new Date('2026-01-01T00:00:00.000Z'),
+        otpId: row.otpId,
+      }),
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('countAttempt', () => {
+  it('adds one to what the row already held', async () => {
+    await expect(
+      repository({
+        otp: [row],
+      }).countAttempt({
+        attempts: 2,
+        otpId: row.otpId,
+      }),
+    ).resolves.toBeUndefined()
+  })
+})
 `,
     'src/entities/otp/otp.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
@@ -225,6 +530,76 @@ export class OtpRepository {
   }
 }
 `,
+    'src/entities/permission/permission.repository.test.ts': `import { describe, expect, it } from 'vitest'
+
+import type { DatabaseService } from '${scope}/database'
+
+import {
+  mockPermission,
+  PermissionRepository,
+} from '@/entities/permission/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+
+const row = {
+  audience: 'ADMIN',
+  description: 'Read the organization and its settings.',
+  key: 'admin:organization.read',
+  permissionId: '01930f48-9c31-7a44-8b70-4f1d2e6a3c00',
+}
+
+function repository(tables: Record<string, Record<string, unknown>[]> = {}) {
+  return new PermissionRepository(mockDatabase(tables) as DatabaseService)
+}
+
+describe('findMany', () => {
+  it('hydrates every row', async () => {
+    expect(
+      await repository({
+        permission: [row],
+      }).findMany(),
+    ).toEqual([mockPermission()])
+  })
+})
+
+describe('findByKeys', () => {
+  it('hydrates the rows it was asked for', async () => {
+    expect(
+      await repository({
+        permission: [row],
+      }).findByKeys({
+        keys: [row.key],
+      }),
+    ).toEqual([mockPermission()])
+  })
+
+  /**
+   * The seed asks with whatever the catalogue holds, and an empty catalogue
+   * must not become a query for every permission there is.
+   */
+  it('answers an empty list without asking the database anything', async () => {
+    expect(
+      await repository({
+        permission: [row],
+      }).findByKeys({
+        keys: [],
+      }),
+    ).toEqual([])
+  })
+})
+
+describe('create', () => {
+  it('writes the permission under the audience it belongs to', async () => {
+    const permission = await repository().create({
+      audience: 'BACKOFFICE',
+      description: 'Read every organization.',
+      key: 'backoffice:organization.read',
+    })
+
+    expect(permission.isFor('BACKOFFICE')).toBe(true)
+    expect(permission.key).toBe('backoffice:organization.read')
+  })
+})
+`,
     'src/entities/permission/permission.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
@@ -274,6 +649,141 @@ export class PermissionRepository {
     return new Permission(row as Row)
   }
 }
+`,
+    'src/entities/role/role.repository.test.ts': `import { describe, expect, it } from 'vitest'
+
+import type { DatabaseService } from '${scope}/database'
+
+import { mockRole, RoleRepository } from '@/entities/role/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+
+const ORGANIZATION = '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00'
+
+const row = {
+  description: 'Everything inside the organization.',
+  key: 'OWNER',
+  kind: 'ORGANIZATION',
+  name: 'Owner',
+  organizationId: null,
+  roleId: '01930f49-1a55-7e20-b6f3-8d2c4e7a1b00',
+}
+
+function repository(tables: Record<string, Record<string, unknown>[]> = {}) {
+  return new RoleRepository(mockDatabase(tables) as DatabaseService)
+}
+
+describe('find', () => {
+  it('hydrates the row into the entity', async () => {
+    expect(
+      await repository({
+        role: [row],
+      }).find({
+        roleId: row.roleId,
+      }),
+    ).toEqual(mockRole())
+  })
+
+  it('answers null when there is no row', async () => {
+    expect(
+      await repository().find({
+        roleId: row.roleId,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('findByKey', () => {
+  it('hydrates the row into the entity', async () => {
+    expect(
+      await repository({
+        role: [row],
+      }).findByKey({
+        key: 'OWNER',
+      }),
+    ).toEqual(mockRole())
+  })
+
+  it('answers null for a key nobody seeded', async () => {
+    expect(
+      await repository().findByKey({
+        key: 'NOBODY',
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('findAvailable', () => {
+  it('hydrates every row', async () => {
+    expect(
+      await repository({
+        role: [row],
+      }).findAvailable({
+        organizationId: ORGANIZATION,
+      }),
+    ).toEqual([mockRole()])
+  })
+})
+
+describe('create', () => {
+  it('writes the role with the scope it was given', async () => {
+    const role = await repository().create({
+      description: null,
+      key: 'BILLING',
+      kind: 'ORGANIZATION',
+      name: 'Billing',
+      organizationId: ORGANIZATION,
+    })
+
+    expect(role.isEnvironment()).toBe(false)
+    expect(role.belongsTo(ORGANIZATION)).toBe(true)
+  })
+})
+
+describe('findPermissionKeys', () => {
+  /**
+   * This is the composition the repository exists for: the grants and the
+   * permissions are two tables, and what a session carries is the keys.
+   */
+  it('reads the grants and answers with the keys they point at', async () => {
+    expect(
+      await repository({
+        permission: [
+          {
+            key: 'admin:organization.read',
+            permissionId: '01930f48-9c31-7a44-8b70-4f1d2e6a3c00',
+          },
+        ],
+        rolePermission: [
+          {
+            permissionId: '01930f48-9c31-7a44-8b70-4f1d2e6a3c00',
+            roleId: row.roleId,
+          },
+        ],
+      }).findPermissionKeys({
+        roleId: row.roleId,
+      }),
+    ).toEqual(['admin:organization.read'])
+  })
+
+  it('answers an empty list for a role that was granted nothing', async () => {
+    expect(
+      await repository().findPermissionKeys({
+        roleId: row.roleId,
+      }),
+    ).toEqual([])
+  })
+})
+
+describe('grant', () => {
+  it('records the grant', async () => {
+    await expect(
+      repository().grant({
+        permissionId: '01930f48-9c31-7a44-8b70-4f1d2e6a3c00',
+        roleId: row.roleId,
+      }),
+    ).resolves.toBeUndefined()
+  })
+})
 `,
     'src/entities/role/role.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
@@ -375,6 +885,202 @@ export class RoleRepository {
     })
   }
 }
+`,
+    'src/entities/user/user.repository.test.ts': `import { describe, expect, it } from 'vitest'
+
+import type { ClockService } from '@turystack/nestjs-context'
+import type { DatabaseService } from '${scope}/database'
+
+import { mockUser, UserRepository } from '@/entities/user/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+
+const NOW = new Date('2026-01-01T00:00:00.000Z')
+const clock = {
+  now: () => NOW,
+} as ClockService
+
+const row = {
+  email: 'ana@acme.test',
+  emailVerifiedAt: null,
+  lastSignedInAt: null,
+  locale: 'en',
+  name: 'Ana Ribeiro',
+  passwordChangedAt: null,
+  passwordHash: null,
+  phone: null,
+  phoneVerifiedAt: null,
+  userId: '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00',
+}
+
+function repository(tables: Record<string, Record<string, unknown>[]> = {}) {
+  return new UserRepository(mockDatabase(tables) as DatabaseService, clock)
+}
+
+describe('find', () => {
+  it('hydrates the row into the entity', async () => {
+    const user = await repository({
+      user: [row],
+    }).find({
+      userId: row.userId,
+    })
+
+    expect(user).toEqual(mockUser())
+  })
+
+  it('answers null when there is no row, rather than an empty entity', async () => {
+    expect(
+      await repository().find({
+        userId: row.userId,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('findByProvider', () => {
+  it('reads the identity and then the person it points at', async () => {
+    const user = await repository({
+      user: [row],
+      userSocialIdentity: [
+        {
+          userId: row.userId,
+        },
+      ],
+    }).findByProvider({
+      profile: {
+        email: 'ana@acme.test',
+        id: 'google-1',
+        provider: 'GOOGLE',
+      },
+    })
+
+    expect(user?.userId).toBe(row.userId)
+  })
+
+  it('answers null when no identity is linked', async () => {
+    expect(
+      await repository({
+        user: [row],
+      }).findByProvider({
+        profile: {
+          email: 'ana@acme.test',
+          id: 'google-1',
+          provider: 'GOOGLE',
+        },
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('create', () => {
+  /**
+   * The address a person types is not the address they typed last time. Two
+   * accounts for one mailbox is the failure this normalisation exists to stop.
+   */
+  it('stores the address trimmed and lowercased', async () => {
+    const user = await repository().create({
+      email: '  Ana@ACME.test ',
+      name: 'Ana Ribeiro',
+      passwordHash: null,
+    })
+
+    expect(user.email).toBe('ana@acme.test')
+  })
+
+  it('stamps the password change only when a password is set', async () => {
+    const withPassword = await repository().create({
+      email: 'ana@acme.test',
+      name: 'Ana Ribeiro',
+      passwordHash: 'salt:key',
+    })
+    const without = await repository().create({
+      email: 'ana@acme.test',
+      name: 'Ana Ribeiro',
+      passwordHash: null,
+    })
+
+    expect(withPassword.hasPassword()).toBe(true)
+    expect(without.hasPassword()).toBe(false)
+  })
+
+  it('defaults the locale rather than storing nothing', async () => {
+    expect(
+      (
+        await repository().create({
+          email: 'ana@acme.test',
+          name: 'Ana Ribeiro',
+          passwordHash: null,
+        })
+      ).locale,
+    ).toBe('en')
+  })
+})
+
+describe('update', () => {
+  it('hands back the row it changed', async () => {
+    const user = await repository({
+      user: [row],
+    }).update({
+      data: {
+        name: 'Ana Souza',
+      },
+      userId: row.userId,
+    })
+
+    expect(user.name).toBe('Ana Souza')
+    expect(user.userId).toBe(row.userId)
+  })
+})
+
+describe('linkProvider', () => {
+  it('records the identity without touching the person', async () => {
+    await expect(
+      repository().linkProvider({
+        profile: {
+          email: 'ana@acme.test',
+          id: 'google-1',
+          provider: 'GOOGLE',
+        },
+        userId: row.userId,
+      }),
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('create, with the optional fields', () => {
+  it('takes the verification stamp and the locale it was given', async () => {
+    const verifiedAt = new Date('2026-01-01T00:00:00.000Z')
+    const user = await repository().create({
+      email: 'ana@acme.test',
+      emailVerifiedAt: verifiedAt,
+      locale: 'pt-BR',
+      name: 'Ana Ribeiro',
+      passwordHash: null,
+    })
+
+    expect(user.isEmailVerified()).toBe(true)
+    expect(user.locale).toBe('pt-BR')
+  })
+})
+
+describe('findByEmail', () => {
+  it('normalises the address before it looks, as create does before it writes', async () => {
+    expect(
+      await repository({
+        user: [row],
+      }).findByEmail({
+        email: '  Ana@ACME.test ',
+      }),
+    ).toEqual(mockUser())
+  })
+
+  it('answers null for an address nobody registered', async () => {
+    expect(
+      await repository().findByEmail({
+        email: 'nobody@acme.test',
+      }),
+    ).toBeNull()
+  })
+})
 `,
     'src/entities/user/user.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
@@ -482,6 +1188,64 @@ export class UserRepository {
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
+`,
+    'src/entities/workspace/workspace.repository.test.ts': `import { describe, expect, it } from 'vitest'
+
+import type { DatabaseService } from '${scope}/database'
+
+import {
+  mockWorkspace,
+  WorkspaceRepository,
+} from '@/entities/workspace/index.js'
+import { mockDatabase } from '@/support/iam.mock.js'
+
+const ORGANIZATION = '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00'
+
+const row = {
+  isDefault: true,
+  name: 'Acme Viagens',
+  organizationId: ORGANIZATION,
+  slug: 'default',
+  workspaceId: '01930f4b-7e02-7b13-9c48-1d5a8f3e2b00',
+}
+
+function repository(tables: Record<string, Record<string, unknown>[]> = {}) {
+  return new WorkspaceRepository(mockDatabase(tables) as DatabaseService)
+}
+
+describe('findMany', () => {
+  it('hydrates every row', async () => {
+    expect(
+      await repository({
+        workspace: [row],
+      }).findMany({
+        organizationId: ORGANIZATION,
+      }),
+    ).toEqual([mockWorkspace()])
+  })
+
+  it('is an empty list for an organization with none', async () => {
+    expect(
+      await repository().findMany({
+        organizationId: ORGANIZATION,
+      }),
+    ).toEqual([])
+  })
+})
+
+describe('create', () => {
+  it('writes the workspace under the organization it belongs to', async () => {
+    const workspace = await repository().create({
+      isDefault: false,
+      name: 'Second',
+      organizationId: ORGANIZATION,
+      slug: 'second',
+    })
+
+    expect(workspace.belongsTo(ORGANIZATION)).toBe(true)
+    expect(workspace.isDefault).toBe(false)
+  })
+})
 `,
     'src/entities/workspace/workspace.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'

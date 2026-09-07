@@ -416,6 +416,83 @@ export class AuthController {
 `
 }
 
+function renderAudienceControllerTest(audience: string, scope: string): string {
+  return `import { describe, expect, it, vi } from 'vitest'
+
+import type { GetProfile, UpdateProfile } from '${scope}/iam'
+
+import { ${pascalCase(audience)}Controller } from './${audience}.controller.js'
+
+const SESSION = {
+  organizationId: '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00',
+  userId: '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00',
+}
+
+const answer = {
+  user: {
+    name: 'Ana Ribeiro',
+  },
+}
+
+function controller() {
+  const getProfile = {
+    execute: vi.fn().mockResolvedValue(answer),
+  } as unknown as GetProfile
+  const updateProfile = {
+    execute: vi.fn().mockResolvedValue(undefined),
+  } as unknown as UpdateProfile
+
+  return {
+    ${audience}: new ${pascalCase(audience)}Controller(getProfile, updateProfile),
+    getProfile,
+    updateProfile,
+  }
+}
+
+describe('profile', () => {
+  /**
+   * The scope comes from the session and never from the request. A controller
+   * that read an organization out of the body would let anyone name one.
+   */
+  it('asks for the profile in the scope the session carries', async () => {
+    const { ${audience}, getProfile } = controller()
+
+    await ${audience}.profile(SESSION as never)
+
+    expect(getProfile.execute).toHaveBeenCalledWith({
+      organizationId: SESSION.organizationId,
+      userId: SESSION.userId,
+    })
+  })
+})
+
+describe('update', () => {
+  it('changes only the person the session names', async () => {
+    const { ${audience}, updateProfile } = controller()
+
+    await ${audience}.update(SESSION as never, {
+      name: 'Ana Souza',
+    })
+
+    expect(updateProfile.execute).toHaveBeenCalledWith({
+      name: 'Ana Souza',
+      userId: SESSION.userId,
+    })
+  })
+
+  it('answers with the profile as it stands after the change', async () => {
+    const { ${audience}, getProfile } = controller()
+
+    expect(
+      await ${audience}.update(SESSION as never, {
+        name: 'Ana Souza',
+      }),
+    ).toBe(answer)
+    expect(getProfile.execute).toHaveBeenCalled()
+  })
+})`
+}
+
 function renderAudienceController(audience: string, scope: string): string {
   return `import { Body, Inject } from '@nestjs/common'
 import { GetProfile, UpdateProfile } from '${scope}/iam'
@@ -706,6 +783,235 @@ describe('configSchema', () => {
 })
 `,
     'src/config.schema.ts': renderConfigSchema(context),
+    'src/controllers/auth/auth.controller.test.ts': `import { describe, expect, it, vi } from 'vitest'
+
+import {
+  OAuthInvalidGrantException,
+  type OAuthService,
+} from '@turystack/nestjs-oauth'
+import type { SocialAuthService } from '@turystack/nestjs-social-auth'
+
+import type {
+  RequestCode,
+  SignInWithCode,
+  SignInWithPassword,
+  SignInWithProvider,
+  SignUp,
+} from '${scope}/iam'
+
+import { AuthController } from './auth.controller.js'
+
+const USER = '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00'
+const REDIRECT = 'http://localhost:3200/callback?code=abc'
+
+function controller(
+  options: { expired?: boolean; nameless?: boolean } = {},
+) {
+  const oauth = {
+    completeAuthorization: vi.fn().mockResolvedValue(REDIRECT),
+    readTransaction: vi
+      .fn()
+      .mockImplementation(async () => {
+        if (options.expired) {
+          throw new OAuthInvalidGrantException(
+          'This sign-in request expired. Start again from the application.',
+        )
+        }
+
+        return {}
+      }),
+  } as unknown as OAuthService
+  const person = {
+    execute: vi.fn().mockResolvedValue({
+      userId: USER,
+    }),
+  }
+  const requestCode = {
+    execute: vi.fn().mockResolvedValue({
+      code: '123456',
+    }),
+  } as unknown as RequestCode
+  const socialAuth = {
+    resolveIdentity: vi.fn().mockResolvedValue(
+      options.nameless
+        ? {
+            email: 'ana@acme.test',
+            id: 'google-1',
+            provider: 'GOOGLE',
+          }
+        : {
+            email: 'ana@acme.test',
+            id: 'google-1',
+            name: 'Ana Ribeiro',
+            provider: 'GOOGLE',
+          },
+    ),
+  } as unknown as SocialAuthService
+
+  return {
+    auth: new AuthController(
+      oauth,
+      person as unknown as SignUp,
+      person as unknown as SignInWithPassword,
+      person as unknown as SignInWithProvider,
+      requestCode,
+      person as unknown as SignInWithCode,
+      socialAuth,
+    ),
+    oauth,
+    person,
+    requestCode,
+    socialAuth,
+  }
+}
+
+const credentials = {
+  email: 'ana@acme.test',
+  password: 'Sup3rSecret!23',
+  tx: 'tx_1',
+}
+
+describe('every route that signs someone in', () => {
+  /**
+   * Reading the transaction last is how a sign-up came to answer 401 after it
+   * had already written the account. Each route reads it before it does
+   * anything else, and this is the assertion that keeps it that way.
+   */
+  it('refuses an expired transaction before it runs the operation', async () => {
+    const { auth, person } = controller({
+      expired: true,
+    })
+
+    await expect(auth.signUp({
+      ...credentials,
+      name: 'Ana Ribeiro',
+      organizationName: 'Acme',
+    })).rejects.toThrow()
+    expect(person.execute).not.toHaveBeenCalled()
+  })
+
+  it('answers with where to send the browser, never with a session', async () => {
+    const { auth } = controller()
+
+    expect(await auth.signIn(credentials)).toEqual({
+      redirectTo: REDIRECT,
+    })
+  })
+
+  it('completes the authorization for the person it established', async () => {
+    const { auth, oauth } = controller()
+
+    await auth.signIn(credentials)
+
+    expect(oauth.completeAuthorization).toHaveBeenCalledWith('tx_1', USER)
+  })
+})
+
+describe('signUp', () => {
+  it('signs the new account in, so signing up does not ask twice', async () => {
+    const { auth } = controller()
+
+    expect(
+      await auth.signUp({
+        ...credentials,
+        name: 'Ana Ribeiro',
+        organizationName: 'Acme',
+      }),
+    ).toEqual({
+      redirectTo: REDIRECT,
+    })
+  })
+})
+
+describe('code', () => {
+  /**
+   * The answer is the same whether or not the address exists — the code goes
+   * out of band, and saying more here says which addresses are registered.
+   */
+  it('answers that it was sent, and nothing else', async () => {
+    const { auth } = controller()
+
+    expect(
+      await auth.code({
+        email: 'ana@acme.test',
+        purpose: 'SIGN_IN',
+      }),
+    ).toEqual({
+      sent: true,
+    })
+  })
+})
+
+describe('signInWithCodeRoute', () => {
+  it('completes the authorization once the code checks out', async () => {
+    const { auth, oauth } = controller()
+
+    await auth.signInWithCodeRoute({
+      code: '123456',
+      email: 'ana@acme.test',
+      tx: 'tx_1',
+    })
+
+    expect(oauth.completeAuthorization).toHaveBeenCalledWith('tx_1', USER)
+  })
+})
+
+describe('social', () => {
+  it('verifies the provider token before it looks the person up', async () => {
+    const { auth, socialAuth } = controller()
+
+    await auth.social({
+      idToken: 'token',
+      provider: 'GOOGLE',
+      tx: 'tx_1',
+    })
+
+    expect(socialAuth.resolveIdentity).toHaveBeenCalledWith('GOOGLE', 'token')
+  })
+
+  it('hands the profile it verified to the operation', async () => {
+    const { auth, person } = controller()
+
+    await auth.social({
+      idToken: 'token',
+      provider: 'GOOGLE',
+      tx: 'tx_1',
+    })
+
+    expect(person.execute).toHaveBeenCalledWith({
+      email: 'ana@acme.test',
+      id: 'google-1',
+      name: 'Ana Ribeiro',
+      provider: 'GOOGLE',
+    })
+  })
+})
+
+describe('a provider that returns no name', () => {
+  /**
+   * Apple returns a name on the first sign-in and never again. Reading it off a
+   * profile that has none has to produce null rather than \`undefined\`, which is
+   * a column that refuses.
+   */
+  it('sends null rather than a missing field', async () => {
+    const { auth, person } = controller({
+      nameless: true,
+    })
+
+    await auth.social({
+      idToken: 'token',
+      provider: 'APPLE',
+      tx: 'tx_1',
+    })
+
+    expect(person.execute).toHaveBeenCalledWith({
+      email: 'ana@acme.test',
+      id: 'google-1',
+      name: null,
+      provider: 'GOOGLE',
+    })
+  })
+})`,
     'src/controllers/auth/auth.controller.ts': renderAuthController(scope),
     'src/iam-domain.module.ts': `import { Global, Module } from '@nestjs/common'
 import { IAM_PROVIDERS } from '${scope}/iam'
@@ -831,6 +1137,8 @@ export default backendE2e({
   for (const audience of context.audiences) {
     files[`src/controllers/${audience}/${audience}.controller.ts`] =
       renderAudienceController(audience, scope)
+    files[`src/controllers/${audience}/${audience}.controller.test.ts`] =
+      renderAudienceControllerTest(audience, scope)
   }
 
   return files

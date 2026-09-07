@@ -25,11 +25,11 @@ export const TURYSTACK_PACKAGES: Record<
 > = {
   '@turystack/backend-config': {
     directory: 'backend-config',
-    version: '1.3.1',
+    version: '1.4.0',
   },
   '@turystack/config': {
     directory: 'config',
-    version: '1.0.1',
+    version: '1.1.0',
   },
   '@turystack/entity': {
     directory: 'entity',
@@ -45,7 +45,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/frontend-config': {
     directory: 'frontend-config',
-    version: '1.3.1',
+    version: '1.4.0',
   },
   '@turystack/nestjs-cache': {
     directory: 'nestjs-cache',

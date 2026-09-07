@@ -167,8 +167,12 @@ volumes:
         // its `dist`, and `tsc --noEmit` inside one package does not build the
         // packages it depends on. Without the build step a fresh clone fails
         // on the codes the domain publishes rather than on anything it wrote.
-        test: 'tsc -b && pnpm -r --if-present run test',
-        'test:coverage': 'tsc -b && pnpm -r --if-present run test:coverage',
+        // `pnpm build`, not `tsc -b`: an app imports a domain by its package
+        // entry point, and `tsc -b` emits the JavaScript without rewriting the
+        // `@/` specifiers inside it. A test that reaches a domain then fails on
+        // a module it cannot resolve.
+        test: 'pnpm build && pnpm -r --if-present run test',
+        'test:coverage': 'pnpm build && pnpm -r --if-present run test:coverage',
         typecheck: 'tsc -b && pnpm -r --if-present run typecheck',
       },
       type: 'module',
