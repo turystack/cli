@@ -1,11 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
-  "extends": [
-    "../backend-config/biome.json"
-  ],
+  "extends": ["@turystack/backend-config/biome"],
   "files": {
-    "includes": [
-      "src/**/*.ts"
-    ]
+    "includes": ["src/**/*.ts"]
   }
 }
