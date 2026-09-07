@@ -123,15 +123,15 @@ ${clients}
 
 export type ClientId = keyof typeof CLIENTS
 
-export function findClient(id: string): OAuthClientConfig | undefined {
+export function getClient(id: string): OAuthClientConfig | undefined {
   return (CLIENTS as Record<string, OAuthClientConfig | undefined>)[id]
 }
 `,
     'src/index.ts': `export type { ClientId, OAuthClientConfig } from '@/clients.js'
-export { CLIENTS, findClient } from '@/clients.js'
+export { CLIENTS, getClient } from '@/clients.js'
 export { clientRedirectUri, oauthClients } from '@/oauth-clients.js'
 `,
-    'src/oauth-clients.ts': `import { CLIENTS, findClient } from '@/clients.js'
+    'src/oauth-clients.ts': `import { CLIENTS, getClient } from '@/clients.js'
 
 /**
  * The absolute URL the authorization server must have registered.
@@ -144,7 +144,7 @@ export function clientRedirectUri(
   client: string,
   origin: string,
 ): string | null {
-  const config = findClient(client)
+  const config = getClient(client)
 
   return config ? new URL(config.callbackPath, origin).toString() : null
 }
@@ -183,7 +183,7 @@ export function oauthClients(
   })
 }
 `,
-    'src/react/auth-client.ts': `import { findClient } from '@/clients.js'
+    'src/react/auth-client.ts': `import { getClient } from '@/clients.js'
 
 import { createVerifier, deriveChallenge } from './pkce.js'
 import {
@@ -201,7 +201,7 @@ function endpoint(path: string): string {
 
 /** Sends the browser to the authorization server, which sends it to sign-in. */
 export async function beginSignIn(client: string): Promise<void> {
-  const config = findClient(client)
+  const config = getClient(client)
 
   if (!config) {
     throw new Error(\`Unknown OAuth client: \${client}\`)
@@ -239,7 +239,7 @@ export async function completeSignIn(
   returnTo: string
   session: Session
 }> {
-  const config = findClient(client)
+  const config = getClient(client)
 
   if (!config) {
     throw new Error(\`Unknown OAuth client: \${client}\`)
@@ -298,7 +298,7 @@ export async function signOut(): Promise<void> {
 `,
     'src/react/auth-provider.tsx': `import { type ReactNode, useEffect, useState } from 'react'
 
-import { type ClientId, findClient } from '@/clients.js'
+import { type ClientId, getClient } from '@/clients.js'
 
 import {
   beginSignIn,
@@ -335,7 +335,7 @@ type Phase =
     }
 
 function resolvePhase(client: ClientId): Phase {
-  const config = findClient(client)
+  const config = getClient(client)
   const url = new URL(window.location.href)
 
   if (config && url.pathname === config.callbackPath) {
