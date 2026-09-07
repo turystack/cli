@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
@@ -38,7 +39,17 @@ afterEach(async () => {
   )
 })
 
-describe('runSkills', () => {
+/**
+ * Every case here installs from the Turystack source tree, so every case needs
+ * it. Without the guard they all failed wherever only this repository is
+ * checked out — which is every CI run, where they were the reason nothing was
+ * ever published.
+ */
+const HAS_SOURCE_ROOT = existsSync(
+  resolve(REPOSITORY_ROOT, 'backend-pattern-skill/SKILL.md'),
+)
+
+describe.skipIf(!HAS_SOURCE_ROOT)('runSkills', () => {
   it('copies every section into .claude/skills under the skill name', async () => {
     const cwd = createTestDirectory('claude')
 

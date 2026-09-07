@@ -23,8 +23,19 @@ const SOURCE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
  * reachable — the published CLI runs from `node_modules`, where these
  * directories do not exist.
  */
+/** A file only the Turystack source root has. */
+const SOURCE_ROOT_MARKER = 'nestjs-server/package.json'
+
 describe('TURYSTACK_PACKAGES', () => {
   it('maps every package to a directory that exists in the source root', async () => {
+    // The comment above this suite always said the comparison is skipped when
+    // the source root is not reachable, and this test never was: it reported
+    // every package as missing wherever the tree is not checked out, which is
+    // every CI run of this repository.
+    if (!(await exists(resolve(SOURCE_ROOT, SOURCE_ROOT_MARKER)))) {
+      return
+    }
+
     const missing: string[] = []
 
     for (const [name, entry] of Object.entries(TURYSTACK_PACKAGES)) {
