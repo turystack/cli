@@ -7,10 +7,9 @@
  * is what the domain's own index imports, so adding a file to an operation
  * never changes the line that exports it.
  *
- * `resolve-profile` and `seed-iam` have no shape of their own — the first
- * implements a signature the IAM library owns, the second takes nothing — so
- * neither has a types file. An empty one would be a file that exists to satisfy
- * a pattern rather than to hold something.
+ * `resolve-profile` has no shape of its own — it implements a signature the IAM
+ * library owns — so it has no types file. An empty one would be a file that
+ * exists to satisfy a pattern rather than to hold something.
  *
  * Signing up writes four rows — the person, their organization, its first
  * workspace and the membership that ties them — and any three without the
@@ -258,137 +257,6 @@ export class ResolveProfile implements IamProfileResolver {
         roleId,
       }),
       roleId,
-    }
-  }
-}
-`,
-    'src/use-cases/seed-iam/index.ts': `export { SeedIam } from '@/use-cases/seed-iam/seed-iam.js'
-`,
-    'src/use-cases/seed-iam/seed-iam.ts': `import { Inject, Injectable, Logger } from '@nestjs/common'
-import { DatabaseService } from '${scope}/database'
-import { Transactional } from '@turystack/nestjs-database'
-
-import { OrganizationRepository } from '@/entities/organization/index.js'
-import { PermissionRepository } from '@/entities/permission/index.js'
-import type { RoleSeed } from '@/entities/role/index.js'
-import { RoleRepository } from '@/entities/role/index.js'
-import { WorkspaceRepository } from '@/entities/workspace/index.js'
-import { PERMISSIONS, PLATFORM_ORGANIZATION_SLUG, SYSTEM_ROLES } from '@/support/iam.permissions.js'
-
-@Injectable()
-export class SeedIam {
-  private readonly logger = new Logger(SeedIam.name)
-
-  constructor(
-    @Inject(PermissionRepository)
-    private readonly permissions: PermissionRepository,
-    @Inject(WorkspaceRepository)
-    private readonly workspaces: WorkspaceRepository,
-    @Inject(OrganizationRepository)
-    private readonly organizations: OrganizationRepository,
-    @Inject(RoleRepository)
-    private readonly roles: RoleRepository,
-    @Inject(DatabaseService)
-    private readonly db: DatabaseService,
-  ) {}
-
-  @Transactional()
-  async execute() {
-    await this.seedPlatform()
-
-    const permissionIds = await this.seedPermissions()
-
-    for (const role of SYSTEM_ROLES) {
-      await this.seedRole(role, permissionIds)
-    }
-  }
-
-  private async seedPlatform(): Promise<void> {
-    const existing = await this.organizations.findBySlug({
-      slug: PLATFORM_ORGANIZATION_SLUG,
-    })
-
-    if (existing) {
-      return
-    }
-
-    const organization = await this.organizations.create({
-      kind: 'PLATFORM',
-      name: 'Platform',
-      slug: PLATFORM_ORGANIZATION_SLUG,
-      workspaceMode: 'MULTI',
-    })
-
-    await this.workspaces.create({
-      isDefault: true,
-      name: 'Platform',
-      organizationId: organization.organizationId,
-      slug: 'default',
-    })
-  }
-
-  private async seedPermissions(): Promise<Map<string, string>> {
-    const stored = await this.db.permission.findMany()
-    const byKey = new Map(stored.map((row) => [row.key, row.permissionId]))
-
-    for (const permission of PERMISSIONS) {
-      if (byKey.has(permission.key)) {
-        continue
-      }
-
-      const created = await this.permissions.create({
-        audience: permission.audience,
-        description: permission.description,
-        key: permission.key,
-      })
-
-      byKey.set(created.key, created.permissionId)
-    }
-
-    const known = new Set(PERMISSIONS.map((permission) => permission.key))
-
-    for (const row of stored) {
-      if (!known.has(row.key)) {
-        this.logger.warn({
-          message:
-            'permission is in the database and not in the code — roles may still grant it',
-          permission: row.key,
-        })
-      }
-    }
-
-    return byKey
-  }
-
-  private async seedRole(
-    seed: RoleSeed,
-    permissionIds: Map<string, string>,
-  ): Promise<void> {
-    const existing = await this.roles.findByKey({
-      key: seed.key,
-    })
-
-    if (existing) {
-      return
-    }
-
-    const role = await this.roles.create({
-      description: seed.description,
-      key: seed.key,
-      kind: seed.kind,
-      name: seed.name,
-      organizationId: null,
-    })
-
-    for (const key of seed.permissions) {
-      const permissionId = permissionIds.get(key)
-
-      if (permissionId) {
-        await this.roles.grant({
-          permissionId,
-          roleId: role.roleId,
-        })
-      }
     }
   }
 }

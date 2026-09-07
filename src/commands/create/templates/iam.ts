@@ -116,7 +116,7 @@ platform organization, the roles the product ships, and the permissions. It is
 idempotent and runs on every deploy, and it reports what the table holds and the
 code does not.
 `,
-    ...renderContracts(),
+    ...renderContracts(scope),
     ...renderEntities(),
     ...renderRepositories(scope),
     ...renderUseCases(scope),
@@ -129,7 +129,7 @@ export type { GetProfileInput } from '@/use-cases/get-profile/index.js'
 export { CODE_TTL_MINUTES, RequestCode } from '@/use-cases/request-code/index.js'
 export type { RequestCodeInput } from '@/use-cases/request-code/index.js'
 export { ResolveProfile } from '@/use-cases/resolve-profile/index.js'
-export { SeedIam } from '@/use-cases/seed-iam/index.js'
+export { SeedIam } from '@/support/iam.seed.js'
 export { SignInWithCode } from '@/use-cases/sign-in-with-code/index.js'
 export type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/index.js'
 export { SignInWithPassword } from '@/use-cases/sign-in-with-password/index.js'
@@ -151,7 +151,7 @@ import { WorkspaceRepository } from '@/entities/workspace/index.js'
 import { GetProfile } from '@/use-cases/get-profile/index.js'
 import { RequestCode } from '@/use-cases/request-code/index.js'
 import { ResolveProfile } from '@/use-cases/resolve-profile/index.js'
-import { SeedIam } from '@/use-cases/seed-iam/index.js'
+import { SeedIam } from '@/support/iam.seed.js'
 import { SignInWithCode } from '@/use-cases/sign-in-with-code/index.js'
 import { SignInWithPassword } from '@/use-cases/sign-in-with-password/index.js'
 import { SignInWithProvider } from '@/use-cases/sign-in-with-provider/index.js'
