@@ -74,6 +74,35 @@ describe('the IAM schema', () => {
     expect(schema).toContain('is_default')
   })
 
+  it('points every foreign key at a table the schema declares', () => {
+    const schema = files['src/database.schema.ts'] ?? ''
+    const targets = [
+      ...schema.matchAll(/foreignColumns: \[tables\.(\w+)\.(\w+)\]/gu),
+    ]
+
+    expect(targets.length).toBe(14)
+
+    for (const [, table, column] of targets) {
+      expect(IAM_TABLES).toContain(table)
+      // A wrong column name here is not a compile error — the schema map is
+      // loosely typed on purpose — so it fails at `drizzle-kit generate`.
+      // Catching it one layer earlier costs one assertion.
+      expect(schema).toContain(`      ${column}: schema.`)
+    }
+  })
+
+  it('restricts rather than cascades where deleting would strip access', () => {
+    const schema = files['src/database.schema.ts'] ?? ''
+
+    // A role in use cannot be deleted: the product has to say what happens to
+    // the memberships holding it first.
+    expect(schema).toMatch(
+      /name: 'membership_role_fk',\n\s+\}\)\n\s+\.onDelete\('restrict'\)/u,
+    )
+    expect(schema.match(/\.onDelete\('restrict'\)/gu)).toHaveLength(4)
+    expect(schema.match(/\.onDelete\('cascade'\)/gu)).toHaveLength(10)
+  })
+
   it('carries the same casing in the migration config as the runtime client', () => {
     // drizzle-kit names the columns in the migration; the client names them in
     // the query. The two disagreeing is a table nobody can read from.

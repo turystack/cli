@@ -183,7 +183,7 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
       schema.uniqueIndex('user_email_key').on(table.email),
       // Partial, because most people give no phone and every null would
       // otherwise collide with every other null.
@@ -209,7 +209,14 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       createdBy: schema.text(),
       updatedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
+      schema
+        .foreignKey({
+          columns: [table.userId],
+          foreignColumns: [tables.user.userId],
+          name: 'user_social_identity_user_fk',
+        })
+        .onDelete('cascade'),
       schema
         .uniqueIndex('user_social_identity_provider_key')
         .on(table.provider, table.providerId),
@@ -231,7 +238,14 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       createdAt: schema.timestamp({ withTimezone: true }).notNull().defaultNow(),
       updatedAt: schema.timestamp({ withTimezone: true }).notNull().defaultNow(),
     },
-    (table) => [
+    (table, tables) => [
+      schema
+        .foreignKey({
+          columns: [table.userId],
+          foreignColumns: [tables.user.userId],
+          name: 'otp_user_fk',
+        })
+        .onDelete('cascade'),
       // The lookup every verification performs, and only the rows it can use.
       schema
         .index('otp_pending_idx')
@@ -254,7 +268,7 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
       // Global, deliberately: the organization is the top of the scope tree,
       // so there is nothing to scope its slug by.
       schema.uniqueIndex('organization_slug_key').on(table.slug),
@@ -274,7 +288,14 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
+      schema
+        .foreignKey({
+          columns: [table.organizationId],
+          foreignColumns: [tables.organization.organizationId],
+          name: 'workspace_organization_fk',
+        })
+        .onDelete('cascade'),
       schema
         .uniqueIndex('workspace_slug_key')
         .on(table.organizationId, table.slug),
@@ -301,7 +322,37 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
+      schema
+        .foreignKey({
+          columns: [table.userId],
+          foreignColumns: [tables.user.userId],
+          name: 'membership_user_fk',
+        })
+        .onDelete('cascade'),
+      schema
+        .foreignKey({
+          columns: [table.organizationId],
+          foreignColumns: [tables.organization.organizationId],
+          name: 'membership_organization_fk',
+        })
+        .onDelete('cascade'),
+      schema
+        .foreignKey({
+          columns: [table.workspaceId],
+          foreignColumns: [tables.workspace.workspaceId],
+          name: 'membership_workspace_fk',
+        })
+        .onDelete('cascade'),
+      // Not ownership: a role in use cannot be deleted, and the product has to
+      // say what happens to the memberships first.
+      schema
+        .foreignKey({
+          columns: [table.roleId],
+          foreignColumns: [tables.role.roleId],
+          name: 'membership_role_fk',
+        })
+        .onDelete('restrict'),
       schema
         .uniqueIndex('membership_scope_key')
         .on(table.userId, table.organizationId, table.workspaceId),
@@ -328,7 +379,35 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
+      schema
+        .foreignKey({
+          columns: [table.organizationId],
+          foreignColumns: [tables.organization.organizationId],
+          name: 'invitation_organization_fk',
+        })
+        .onDelete('cascade'),
+      schema
+        .foreignKey({
+          columns: [table.workspaceId],
+          foreignColumns: [tables.workspace.workspaceId],
+          name: 'invitation_workspace_fk',
+        })
+        .onDelete('cascade'),
+      schema
+        .foreignKey({
+          columns: [table.roleId],
+          foreignColumns: [tables.role.roleId],
+          name: 'invitation_role_fk',
+        })
+        .onDelete('restrict'),
+      schema
+        .foreignKey({
+          columns: [table.userId],
+          foreignColumns: [tables.user.userId],
+          name: 'invitation_user_fk',
+        })
+        .onDelete('restrict'),
       // One open offer per address per organization. Accepted and revoked rows
       // stay, because they are the record of who offered what.
       schema
@@ -353,7 +432,14 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
+      schema
+        .foreignKey({
+          columns: [table.organizationId],
+          foreignColumns: [tables.organization.organizationId],
+          name: 'role_organization_fk',
+        })
+        .onDelete('cascade'),
       schema.uniqueIndex('role_key').on(table.organizationId, table.key),
     ],
   ),
@@ -366,7 +452,7 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       createdAt: schema.timestamp({ withTimezone: true }).notNull().defaultNow(),
       updatedAt: schema.timestamp({ withTimezone: true }).notNull().defaultNow(),
     },
-    (table) => [
+    (table, tables) => [
       schema.uniqueIndex('permission_key').on(table.key),
     ],
   ),
@@ -380,7 +466,21 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       createdBy: schema.text(),
       updatedBy: schema.text(),
     },
-    (table) => [
+    (table, tables) => [
+      schema
+        .foreignKey({
+          columns: [table.roleId],
+          foreignColumns: [tables.role.roleId],
+          name: 'role_permission_role_fk',
+        })
+        .onDelete('cascade'),
+      schema
+        .foreignKey({
+          columns: [table.permissionId],
+          foreignColumns: [tables.permission.permissionId],
+          name: 'role_permission_permission_fk',
+        })
+        .onDelete('restrict'),
       schema
         .uniqueIndex('role_permission_key')
         .on(table.roleId, table.permissionId),
