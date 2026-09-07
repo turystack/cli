@@ -36,8 +36,6 @@ export const configSchema = defineConfigSchema({
       'production',
     ])
     .default('development'),
-  // Fields, not z.coerce: a blank PORT turns into 0 under coercion, and an API
-  // that binds to port 0 gets a random one and looks like a networking fault.
   PORT: IntSchema({
     min: 1,
   }),
@@ -104,14 +102,9 @@ ${controllers.map((controller) => `    ${controller},`).join('\n')}
     // turystack:audience-controllers
   ],
   imports: [
-    // Global: the correlation id, the acting principal and the clock are read
-    // by logging, auditing and every use case that reasons about an instant.
     ContextModule.register(),
     IamDomainModule,
     ConfigModule.register({
-      // One .env, at the repository root: the services are shared, and a second
-      // copy of DATABASE_URL beside this app is the drift nobody notices until
-      // migrations and the app disagree.
       envFilePath: '../../.env',
       schema: configSchema,
     }),
@@ -127,8 +120,6 @@ ${controllers.map((controller) => `    ${controller},`).join('\n')}
       permissions: {},
       profileResolver: ResolveProfile,
       secret: config.get('IAM_SECRET'),
-      // The web session arrives as an httpOnly cookie; a native client keeps
-      // sending Authorization: Bearer against this same API.
       tokenSource: 'both',
     })),
     OAuthModule.register((config) => ({
@@ -188,8 +179,6 @@ const redirectResponse = z.object({
 })
 
 const withTransaction = z.object({
-  // The authorization this sign-in belongs to, from ?tx= in the URL the
-  // authorization server redirected here with.
   tx: z.string().min(1),
 })
 
@@ -198,8 +187,6 @@ const signUpBody = signUpSchema.extend(withTransaction.shape)
 const codeBody = signInWithCodeSchema.extend(withTransaction.shape)
 const requestCodeBody = requestCodeSchema
 const requestCodeResponse = z.object({
-  // Always true: whether the address has an account is not something this
-  // endpoint answers.
   sent: z.boolean(),
 })
 
@@ -297,9 +284,6 @@ export class AuthController {
   async code(
     @Body() body: z.infer<typeof requestCodeBody>,
   ): Promise<z.infer<typeof requestCodeResponse>> {
-    // The code is returned by the use case so a delivery adapter can send it.
-    // Until there is one, it goes nowhere — and the response still says the
-    // same thing either way, because "no account here" is worth enumerating.
     await this.requestCode.execute(body)
 
     return {
@@ -346,9 +330,6 @@ export class AuthController {
   async social(
     @Body() body: z.infer<typeof socialBody>,
   ): Promise<z.infer<typeof redirectResponse>> {
-    // The browser obtained this token from the provider; the API is what
-    // decides it is genuine. A token the client merely claims is valid buys
-    // nothing.
     const profile = await this.socialAuth.resolveIdentity(
       body.provider as SocialAuthProvider,
       body.idToken,
@@ -518,8 +499,6 @@ await Server.create(AppModule, (config) => ({
   globalPrefix: 'api',
   healthMessage: '${context.project} is healthy',
   port: config.get('PORT'),
-  // One document per audience. The auth surface is its own, because the
-  // application that consumes it is its own too.
   projects: [
 ${projects}
     // turystack:audience-projects

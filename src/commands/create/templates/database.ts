@@ -48,13 +48,6 @@ export function generateDatabaseFiles(context: {
 import { defineConfig } from 'drizzle-kit'
 import { z } from 'zod'
 
-// The repository keeps one .env, at its root. drizzle-kit runs from this
-// package, so it reaches back for it rather than keeping a second copy of the
-// connection string beside the migrations.
-//
-// The parsed result is read directly rather than through process.env: this is
-// the migration tool's own boot, and validating what the file actually said
-// beats trusting whatever the ambient environment happens to hold.
 const { parsed } = config({
   path: '../../.env',
 })
@@ -66,8 +59,6 @@ const databaseUrl = z
   .parse(parsed?.DATABASE_URL)
 
 export default defineConfig({
-  // The same setting the runtime client carries, or the migrations written
-  // here would name the columns one way and the queries would ask for another.
   casing: 'snake_case',
   dbCredentials: {
     url: databaseUrl,
@@ -171,8 +162,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       emailVerifiedAt: schema.timestamp({ withTimezone: true }),
       phone: schema.text(),
       phoneVerifiedAt: schema.timestamp({ withTimezone: true }),
-      // Null means this person has no password and signs in socially or by
-      // code. A placeholder here would be a credential nobody set.
       passwordHash: schema.text(),
       passwordChangedAt: schema.timestamp({ withTimezone: true }),
       locale: schema.text().notNull().default('en'),
@@ -186,8 +175,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
     },
     (table) => [
       schema.uniqueIndex('user_email_key').on(table.email),
-      // Partial, because most people give no phone and every null would
-      // otherwise collide with every other null.
       schema
         .uniqueIndex('user_phone_key')
         .on(table.phone)
@@ -199,9 +186,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       userSocialIdentityId: schema.uuid().primaryKey(),
       userId: schema.uuid().notNull(),
       provider: schema.text().notNull(),
-      // The provider's own stable id for the person — \`sub\`, \`oid\`, or the
-      // Graph id. Never the email: an email changes hands, and some providers
-      // do not return one at all.
       providerId: schema.text().notNull(),
       providerEmail: schema.text(),
       lastUsedAt: schema.timestamp({ withTimezone: true }),
@@ -229,8 +213,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       userId: schema.uuid().notNull(),
       purpose: schema.text().notNull(),
       channel: schema.text().notNull(),
-      // Frozen at issue: changing the person's email afterwards does not
-      // retarget a code already sent.
       target: schema.text().notNull(),
       codeHash: schema.text().notNull(),
       expiresAt: schema.timestamp({ withTimezone: true }).notNull(),
@@ -247,7 +229,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
           name: 'otp_user_fk',
         })
         .onDelete('cascade'),
-      // The lookup every verification performs, and only the rows it can use.
       schema
         .index('otp_pending_idx')
         .on(table.userId, table.purpose)
@@ -270,8 +251,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       deletedBy: schema.text(),
     },
     (table) => [
-      // Global, deliberately: the organization is the top of the scope tree,
-      // so there is nothing to scope its slug by.
       schema.uniqueIndex('organization_slug_key').on(table.slug),
     ],
   ),
@@ -300,7 +279,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       schema
         .uniqueIndex('workspace_slug_key')
         .on(table.organizationId, table.slug),
-      // Exactly one default per organization, enforced rather than hoped for.
       schema
         .uniqueIndex('workspace_default_key')
         .on(table.organizationId)
@@ -312,7 +290,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       membershipId: schema.uuid().primaryKey(),
       userId: schema.uuid().notNull(),
       organizationId: schema.uuid().notNull(),
-      // Null means the role applies across the whole organization.
       workspaceId: schema.uuid(),
       roleId: schema.uuid().notNull(),
       status: schema.text().notNull().default('ACTIVE'),
@@ -345,8 +322,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
           name: 'membership_workspace_fk',
         })
         .onDelete('cascade'),
-      // Not ownership: a role in use cannot be deleted, and the product has to
-      // say what happens to the memberships first.
       schema
         .foreignKey({
           columns: [table.roleId],
@@ -365,7 +340,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       organizationId: schema.uuid().notNull(),
       workspaceId: schema.uuid(),
       roleId: schema.uuid().notNull(),
-      // Null until accepted; the address may belong to nobody yet.
       userId: schema.uuid(),
       email: schema.text().notNull(),
       tokenHash: schema.text().notNull(),
@@ -409,8 +383,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
           name: 'invitation_user_fk',
         })
         .onDelete('restrict'),
-      // One open offer per address per organization. Accepted and revoked rows
-      // stay, because they are the record of who offered what.
       schema
         .uniqueIndex('invitation_pending_key')
         .on(table.organizationId, table.email)
@@ -420,7 +392,6 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
   role: schema.table(
     {
       roleId: schema.uuid().primaryKey(),
-      // Set only when kind is ORGANIZATION.
       organizationId: schema.uuid(),
       kind: schema.text().notNull(),
       key: schema.text().notNull(),

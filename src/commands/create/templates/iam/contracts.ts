@@ -221,9 +221,6 @@ export const signUpSchema = z.object({
 
 export const signInWithPasswordSchema = z.object({
   email: EmailSchema(),
-  // Deliberately not PasswordSchema: signing in must accept a password that no
-  // longer satisfies today's policy. Refusing it here would lock out the very
-  // person the rule was tightened to protect.
   password: z.string().min(1),
 })
 

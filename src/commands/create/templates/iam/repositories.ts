@@ -1,25 +1,32 @@
 // turystack-proof:pattern-data — this file emits a package as source text.
 
 /**
- * The repositories: rows in and out.
+ * The repositories that earn their existence.
  *
- * Every method is a data verb — `find`, `findMany`, `create`, `update` — and
- * every decision about what the rows mean lives in a use case or an entity. A
- * read that returns scoped rows takes the scope in its input, so forgetting it
- * is a compile error rather than a leak.
+ * One is written when it adds policy or composition: hydrating an entity,
+ * joining two tables, a query the domain owns. `workspace` and `permission`
+ * have neither, so their use cases reach the typed repository `DatabaseService`
+ * already provides rather than a wrapper with no behaviour.
+ *
+ * Every injected parameter carries `@Inject`, which keeps the class a value:
+ * `useImportType` would otherwise make the import type-only and erase the
+ * metadata the container reads.
  */
 export function renderRepositories(): Record<string, string> {
   return {
-    'src/membership.repository.ts': `import { Injectable } from '@nestjs/common'
+    'src/membership.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '@repo/database'
 import { uuidv7 } from 'uuidv7'
 
-import { Membership } from '@/membership.entity.js'
 import type { MembershipRecord } from '@/iam.types.js'
+import { Membership } from '@/membership.entity.js'
 
 @Injectable()
 export class MembershipRepository {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+  ) {}
 
   async find(input: { membershipId: string }): Promise<Membership | null> {
     const row = await this.db.membership.findFirst({
@@ -29,7 +36,6 @@ export class MembershipRepository {
     return row ? new Membership(row as MembershipRecord) : null
   }
 
-  /** Every organization this person acts for — the sign-in choice. */
   async findMany(input: {
     organizationId?: string
     userId: string
@@ -47,9 +53,7 @@ export class MembershipRepository {
     return rows.map((row) => new Membership(row as MembershipRecord))
   }
 
-  async findMembers(input: {
-    organizationId: string
-  }): Promise<Membership[]> {
+  async findMembers(input: { organizationId: string }): Promise<Membership[]> {
     const rows = await this.db.membership.findMany({
       where: (fields, { eq }) =>
         eq(fields.organizationId, input.organizationId),
@@ -77,7 +81,7 @@ export class MembershipRepository {
   }
 }
 `,
-    'src/organization.repository.ts': `import { Injectable } from '@nestjs/common'
+    'src/organization.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '@repo/database'
 import { uuidv7 } from 'uuidv7'
 
@@ -86,7 +90,10 @@ import { Organization } from '@/organization.entity.js'
 
 @Injectable()
 export class OrganizationRepository {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+  ) {}
 
   async find(input: { organizationId: string }): Promise<Organization | null> {
     const row = await this.db.organization.findFirst({
@@ -105,17 +112,7 @@ export class OrganizationRepository {
     return row ? new Organization(row as OrganizationRecord) : null
   }
 
-  /**
-   * The one read that crosses organizations.
-   *
-   * \`organizationId\` is optional and the caller decides: a client surface fills
-   * it from the authenticated profile, the backoffice leaves it out because
-   * querying across organizations is the point. One method, one query, and the
-   * decision at the layer that knows who is asking.
-   */
-  async findMany(input: {
-    organizationId?: string
-  }): Promise<Organization[]> {
+  async findMany(input: { organizationId?: string }): Promise<Organization[]> {
     const rows = await this.db.organization.findMany({
       where: (fields, { eq }) =>
         input.organizationId
@@ -145,7 +142,7 @@ export class OrganizationRepository {
   }
 }
 `,
-    'src/otp.repository.ts': `import { Injectable } from '@nestjs/common'
+    'src/otp.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '@repo/database'
 import { uuidv7 } from 'uuidv7'
 
@@ -154,9 +151,11 @@ import { Otp } from '@/otp.entity.js'
 
 @Injectable()
 export class OtpRepository {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+  ) {}
 
-  /** The newest code still in flight for this purpose, if there is one. */
   async findPending(input: {
     purpose: OtpPurpose
     userId: string
@@ -212,39 +211,7 @@ export class OtpRepository {
   }
 }
 `,
-    'src/permission.repository.ts': `import { Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
-import { uuidv7 } from 'uuidv7'
-
-import type { Audience, PermissionRecord } from '@/iam.types.js'
-
-@Injectable()
-export class PermissionRepository {
-  constructor(private readonly db: DatabaseService) {}
-
-  async findMany(): Promise<PermissionRecord[]> {
-    const rows = await this.db.permission.findMany()
-
-    return rows as PermissionRecord[]
-  }
-
-  async create(input: {
-    audience: Audience
-    description: string
-    key: string
-  }): Promise<PermissionRecord> {
-    const row = await this.db.permission.create({
-      audience: input.audience,
-      description: input.description,
-      key: input.key,
-      permissionId: uuidv7(),
-    })
-
-    return row as PermissionRecord
-  }
-}
-`,
-    'src/role.repository.ts': `import { Injectable } from '@nestjs/common'
+    'src/role.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '@repo/database'
 import { uuidv7 } from 'uuidv7'
 
@@ -252,7 +219,10 @@ import type { RoleKind, RoleRecord } from '@/iam.types.js'
 
 @Injectable()
 export class RoleRepository {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+  ) {}
 
   async find(input: { roleId: string }): Promise<RoleRecord | null> {
     const row = await this.db.role.findFirst({
@@ -279,10 +249,6 @@ export class RoleRepository {
     return (row as RoleRecord | undefined) ?? null
   }
 
-  /**
-   * The roles an organization may hand out: its own, plus the ones the product
-   * ships to everyone. A \`BACKOFFICE\` role is in neither set.
-   */
   async findAvailable(input: {
     organizationId: string
   }): Promise<RoleRecord[]> {
@@ -316,7 +282,6 @@ export class RoleRepository {
     return row as RoleRecord
   }
 
-  /** The permission keys a role grants, which is what a session carries. */
   async findPermissionKeys(input: { roleId: string }): Promise<string[]> {
     const grants = await this.db.rolePermission.findMany({
       where: (fields, { eq }) => eq(fields.roleId, input.roleId),
@@ -337,10 +302,7 @@ export class RoleRepository {
     return permissions.map((permission) => permission.key)
   }
 
-  async grant(input: {
-    permissionId: string
-    roleId: string
-  }): Promise<void> {
+  async grant(input: { permissionId: string; roleId: string }): Promise<void> {
     await this.db.rolePermission.create({
       permissionId: input.permissionId,
       roleId: input.roleId,
@@ -349,11 +311,10 @@ export class RoleRepository {
   }
 }
 `,
-    'src/user.repository.ts': `import { Injectable } from '@nestjs/common'
+    'src/user.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '@repo/database'
-import { uuidv7 } from 'uuidv7'
-
 import { ClockService } from '@turystack/nestjs-context'
+import { uuidv7 } from 'uuidv7'
 
 import type { SocialProfile, UserRecord } from '@/iam.types.js'
 import { User } from '@/user.entity.js'
@@ -361,7 +322,9 @@ import { User } from '@/user.entity.js'
 @Injectable()
 export class UserRepository {
   constructor(
+    @Inject(DatabaseService)
     private readonly db: DatabaseService,
+    @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
 
@@ -375,15 +338,13 @@ export class UserRepository {
 
   async findByEmail(input: { email: string }): Promise<User | null> {
     const row = await this.db.user.findFirst({
-      where: (fields, { eq }) => eq(fields.email, normalize(input.email)),
+      where: (fields, { eq }) => eq(fields.email, normalizeEmail(input.email)),
     })
 
     return row ? new User(row as UserRecord) : null
   }
 
-  async findByProvider(input: {
-    profile: SocialProfile
-  }): Promise<User | null> {
+  async findByProvider(input: { profile: SocialProfile }): Promise<User | null> {
     const link = await this.db.userSocialIdentity.findFirst({
       where: (fields, { and, eq }) =>
         and(
@@ -407,12 +368,12 @@ export class UserRepository {
     passwordHash: string | null
   }): Promise<User> {
     const row = await this.db.user.create({
-      email: normalize(input.email),
+      email: normalizeEmail(input.email),
       emailVerifiedAt: input.emailVerifiedAt ?? null,
       locale: input.locale ?? 'en',
       name: input.name,
-      passwordHash: input.passwordHash,
       passwordChangedAt: input.passwordHash ? this.clock.now() : null,
+      passwordHash: input.passwordHash,
       userId: uuidv7(),
     })
 
@@ -420,7 +381,6 @@ export class UserRepository {
   }
 
   async update(input: {
-    userId: string
     data: {
       emailVerifiedAt?: Date
       lastSignedInAt?: Date
@@ -428,6 +388,7 @@ export class UserRepository {
       passwordChangedAt?: Date
       passwordHash?: string
     }
+    userId: string
   }): Promise<void> {
     await this.db.user.updateById(input.userId, input.data)
   }
@@ -446,68 +407,8 @@ export class UserRepository {
   }
 }
 
-/**
- * The address as the database stores it.
- *
- * Uniqueness is on the column, so two rows differing only in case would both
- * be accepted — and then sign-in would find whichever came first.
- */
-function normalize(email: string): string {
+function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
-}
-`,
-    'src/workspace.repository.ts': `import { Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
-import { uuidv7 } from 'uuidv7'
-
-import type { WorkspaceRecord } from '@/iam.types.js'
-
-@Injectable()
-export class WorkspaceRepository {
-  constructor(private readonly db: DatabaseService) {}
-
-  async find(input: {
-    organizationId: string
-    workspaceId: string
-  }): Promise<WorkspaceRecord | null> {
-    const row = await this.db.workspace.findFirst({
-      where: (fields, { and, eq }) =>
-        and(
-          eq(fields.workspaceId, input.workspaceId),
-          eq(fields.organizationId, input.organizationId),
-        ),
-    })
-
-    return (row as WorkspaceRecord | undefined) ?? null
-  }
-
-  async findMany(input: {
-    organizationId: string
-  }): Promise<WorkspaceRecord[]> {
-    const rows = await this.db.workspace.findMany({
-      where: (fields, { eq }) =>
-        eq(fields.organizationId, input.organizationId),
-    })
-
-    return rows as WorkspaceRecord[]
-  }
-
-  async create(input: {
-    isDefault: boolean
-    name: string
-    organizationId: string
-    slug: string
-  }): Promise<WorkspaceRecord> {
-    const row = await this.db.workspace.create({
-      isDefault: input.isDefault,
-      name: input.name,
-      organizationId: input.organizationId,
-      slug: input.slug,
-      workspaceId: uuidv7(),
-    })
-
-    return row as WorkspaceRecord
-  }
 }
 `,
   }

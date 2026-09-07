@@ -129,8 +129,6 @@ function SignInPage() {
   })
 
   async function onSubmit(values: SignInValues) {
-    // The API answers with where to send the browser: back to the application
-    // that started this sign-in, carrying the authorization code.
     const { redirectTo } = await signIn({
       ...values,
       tx,
@@ -640,8 +638,6 @@ describe('signIn', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
 
     expect(url).toBe('http://localhost:3000/api/v1/auth/sign-in')
-    // Without this the session cookie the API sets never reaches the browser,
-    // and the sign-in appears to succeed while leaving nobody signed in.
     expect(init.credentials).toBe('include')
   })
 

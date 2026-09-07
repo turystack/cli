@@ -61,6 +61,7 @@ permissions they hold there.
 | File | What it owns |
 | --- | --- |
 | \`iam.schema.ts\` | the contracts every surface validates against |
+| \`iam.mock.ts\` | the builders a test uses instead of a database |
 | \`iam.permissions.ts\` | the permission catalogue and the roles the product ships |
 | \`*.entity.ts\` | the invariants — what may be true of a row |
 | \`*.repository.ts\` | rows in and out, nothing else |
@@ -93,18 +94,22 @@ code does not.
     ...renderEntities(),
     ...renderRepositories(),
     ...renderUseCases(),
-    'src/index.ts': `export { Membership } from '@/membership.entity.js'
+    'src/index.ts': `export {
+  mockMembership,
+  mockOrganization,
+  mockOtp,
+  mockUser,
+} from '@/iam.mock.js'
+export { Membership } from '@/membership.entity.js'
 export { Organization } from '@/organization.entity.js'
-export { Otp, MAX_OTP_ATTEMPTS } from '@/otp.entity.js'
+export { MAX_OTP_ATTEMPTS, Otp } from '@/otp.entity.js'
 export { User } from '@/user.entity.js'
 
 export { MembershipRepository } from '@/membership.repository.js'
 export { OrganizationRepository } from '@/organization.repository.js'
 export { OtpRepository } from '@/otp.repository.js'
-export { PermissionRepository } from '@/permission.repository.js'
 export { RoleRepository } from '@/role.repository.js'
 export { UserRepository } from '@/user.repository.js'
-export { WorkspaceRepository } from '@/workspace.repository.js'
 
 export {
   PERMISSIONS,
@@ -130,7 +135,7 @@ export type {
 } from '@/iam.types.js'
 
 export { GetProfile } from '@/use-cases/get-profile/get-profile.js'
-export type { Profile } from '@/use-cases/get-profile/get-profile.js'
+export type { Profile } from '@/use-cases/get-profile/get-profile.types.js'
 export { RequestCode } from '@/use-cases/request-code/request-code.js'
 export { ResolveProfile } from '@/use-cases/resolve-profile/resolve-profile.js'
 export { SeedIam } from '@/use-cases/seed-iam/seed-iam.js'
@@ -143,7 +148,6 @@ export { UpdateProfile } from '@/use-cases/update-profile/update-profile.js'
 import { MembershipRepository } from '@/membership.repository.js'
 import { OrganizationRepository } from '@/organization.repository.js'
 import { OtpRepository } from '@/otp.repository.js'
-import { PermissionRepository } from '@/permission.repository.js'
 import { RoleRepository } from '@/role.repository.js'
 import { GetProfile } from '@/use-cases/get-profile/get-profile.js'
 import { RequestCode } from '@/use-cases/request-code/request-code.js'
@@ -155,7 +159,6 @@ import { SignInWithProvider } from '@/use-cases/sign-in-with-provider/sign-in-wi
 import { SignUp } from '@/use-cases/sign-up/sign-up.js'
 import { UpdateProfile } from '@/use-cases/update-profile/update-profile.js'
 import { UserRepository } from '@/user.repository.js'
-import { WorkspaceRepository } from '@/workspace.repository.js'
 
 /**
  * Everything this domain provides, as one list.
@@ -169,7 +172,6 @@ export const IAM_PROVIDERS = [
   MembershipRepository,
   OrganizationRepository,
   OtpRepository,
-  PermissionRepository,
   RequestCode,
   ResolveProfile,
   RoleRepository,
@@ -180,7 +182,6 @@ export const IAM_PROVIDERS = [
   SignUp,
   UpdateProfile,
   UserRepository,
-  WorkspaceRepository,
 ]
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig([

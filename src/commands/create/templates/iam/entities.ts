@@ -1,26 +1,89 @@
 // turystack-proof:pattern-data — this file emits a package as source text.
 
 /**
- * The entities, and the two credential helpers they lean on.
+ * The entities, the credential helpers each aggregate owns, and the mocks.
  *
- * An entity owns its invariants and decides nothing by IO: `checkIfCanSignIn`
- * reads only its own state, and `verifyCredential` compares a hash it already
- * holds. That is what keeps the comparison constant-time on every path, and
- * what stops a use case from re-deciding the same rule somewhere else.
+ * `support/` is for pure functions with no domain owner, so hashing a password
+ * lives with the user, generating a code with the OTP, and slugifying a name
+ * with the organization.
  */
 export function renderEntities(): Record<string, string> {
   return {
-    'src/membership.entity.ts': `import { Entity } from '@turystack/entity'
-import { exceptions } from '@repo/exceptions'
+    'src/iam.mock.ts': `import type {
+  MembershipRecord,
+  OrganizationRecord,
+  OtpRecord,
+  UserRecord,
+} from '@/iam.types.js'
+import { Membership } from '@/membership.entity.js'
+import { Organization } from '@/organization.entity.js'
+import { Otp } from '@/otp.entity.js'
+import { User } from '@/user.entity.js'
+
+export function mockUser(overrides: Partial<UserRecord> = {}): User {
+  return new User({
+    email: 'ana@acme.test',
+    emailVerifiedAt: null,
+    lastSignedInAt: null,
+    locale: 'en',
+    name: 'Ana Ribeiro',
+    passwordChangedAt: null,
+    passwordHash: null,
+    phone: null,
+    phoneVerifiedAt: null,
+    userId: '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00',
+    ...overrides,
+  })
+}
+
+export function mockOrganization(
+  overrides: Partial<OrganizationRecord> = {},
+): Organization {
+  return new Organization({
+    kind: 'CUSTOMER',
+    name: 'Acme Viagens',
+    organizationId: '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00',
+    slug: 'acme-viagens',
+    status: 'ACTIVE',
+    workspaceMode: 'SINGLE',
+    ...overrides,
+  })
+}
+
+export function mockMembership(
+  overrides: Partial<MembershipRecord> = {},
+): Membership {
+  return new Membership({
+    membershipId: '01930f4c-2b90-7c81-84d2-3a7e1c9f5b00',
+    organizationId: '01930f4a-3d10-7f42-a81b-6c2e9d5f4a00',
+    roleId: '01930f49-1a55-7e20-b6f3-8d2c4e7a1b00',
+    status: 'ACTIVE',
+    userId: '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00',
+    workspaceId: null,
+    ...overrides,
+  })
+}
+
+export function mockOtp(overrides: Partial<OtpRecord> = {}): Otp {
+  return new Otp({
+    attempts: 0,
+    channel: 'EMAIL',
+    codeHash: 'salt:key',
+    consumedAt: null,
+    expiresAt: new Date('2100-01-01T00:00:00.000Z'),
+    otpId: '01930f50-1c88-7d09-b2a7-5e6f7a8b9c00',
+    purpose: 'SIGN_IN',
+    target: 'ana@acme.test',
+    userId: '01930f4e-6b21-7c3a-9f10-2c1a5b7d4e00',
+    ...overrides,
+  })
+}
+`,
+    'src/membership.entity.ts': `import { exceptions } from '@repo/exceptions'
+import { Entity } from '@turystack/entity'
 
 import type { MembershipRecord } from '@/iam.types.js'
 
-/**
- * A person, in an organization, holding a role.
- *
- * A null \`workspaceId\` is not missing data: it means the role applies across
- * the whole organization.
- */
 @Entity('iam.membership')
 export class Membership {
   readonly membershipId: string
@@ -53,13 +116,6 @@ export class Membership {
     }
   }
 
-  /**
-   * The scope check every read by id ends with.
-   *
-   * A row is fetched without a scope filter and then refused here, so a
-   * resource belonging to another organization answers with a denial rather
-   * than with "not found" — which is a different, and misleading, answer.
-   */
   checkOrganization(organizationId: string): void {
     if (this.organizationId !== organizationId) {
       throw new exceptions.iam.outOfScope()
@@ -67,12 +123,11 @@ export class Membership {
   }
 }
 `,
-    'src/organization.entity.ts': `import { Entity } from '@turystack/entity'
-import { exceptions } from '@repo/exceptions'
+    'src/organization.entity.ts': `import { exceptions } from '@repo/exceptions'
+import { Entity } from '@turystack/entity'
 
 import type { OrganizationRecord } from '@/iam.types.js'
 
-/** The tenant: the root of every scope in the product. */
 @Entity('iam.organization')
 export class Organization {
   readonly organizationId: string
@@ -103,34 +158,98 @@ export class Organization {
     return this.workspaceMode === 'MULTI'
   }
 
-  /**
-   * The single-workspace mode is a policy, not a shape: both modes have a
-   * workspace row, and this is the rule that keeps the second one from being
-   * created. Upgrading a customer is a column value, never a migration.
-   */
-  checkIfCanAddWorkspace(): void {
-    if (!this.allowsManyWorkspaces()) {
-      throw new exceptions.iam.singleWorkspaceOrganization()
-    }
-  }
-
   checkIfActive(): void {
     if (!this.isActive()) {
       throw new exceptions.iam.organizationSuspended()
     }
   }
+
+  checkIfCanAddWorkspace(): void {
+    if (!this.allowsManyWorkspaces()) {
+      throw new exceptions.iam.singleWorkspaceOrganization()
+    }
+  }
 }
 `,
-    'src/otp.entity.ts': `import { Entity } from '@turystack/entity'
-import { exceptions } from '@repo/exceptions'
+    'src/organization.slug.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { slugify } from '@/organization.slug.js'
+
+describe('slugify', () => {
+  it('keeps the letters an accent was written on', () => {
+    expect(slugify('Operações')).toBe('operacoes')
+  })
+
+  it('collapses everything that cannot appear in a URL', () => {
+    expect(slugify('Acme  Viagens & Turismo!')).toBe('acme-viagens-turismo')
+  })
+
+  it('never answers with an empty string', () => {
+    expect(slugify('!!!')).toBe('organization')
+  })
+})
+`,
+    'src/organization.slug.ts': `export function slugify(name: string): string {
+  const slug = name
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '')
+
+  return slug === '' ? 'organization' : slug
+}
+`,
+    'src/otp.code.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { CODE_LENGTH, generateCode, hashCode, verifyCode } from '@/otp.code.js'
+
+describe('generateCode', () => {
+  it('is always the declared number of digits, including when it starts at zero', () => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const code = generateCode()
+
+      expect(code).toHaveLength(CODE_LENGTH)
+      expect(code).toMatch(/^\\d+$/u)
+    }
+  })
+})
+
+describe('verifyCode', () => {
+  it('accepts the code it was made from and refuses another', async () => {
+    const stored = await hashCode('123456')
+
+    expect(await verifyCode('123456', stored)).toBe(true)
+    expect(await verifyCode('123457', stored)).toBe(false)
+  })
+})
+`,
+    'src/otp.code.ts': `import { randomInt } from 'node:crypto'
+
+import { hashPassword, verifyPassword } from '@/user.password.js'
+
+export const CODE_LENGTH = 6
+
+export function generateCode(): string {
+  return String(randomInt(0, 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0')
+}
+
+export function hashCode(code: string): Promise<string> {
+  return hashPassword(code)
+}
+
+export function verifyCode(code: string, stored: string): Promise<boolean> {
+  return verifyPassword(code, stored)
+}
+`,
+    'src/otp.entity.ts': `import { exceptions } from '@repo/exceptions'
+import { Entity } from '@turystack/entity'
 
 import type { OtpRecord } from '@/iam.types.js'
-import { verifyCode } from '@/support/code.js'
+import { verifyCode } from '@/otp.code.js'
 
-/** The most attempts a single code accepts before it is spent. */
 export const MAX_OTP_ATTEMPTS = 5
 
-/** A one-time code: single use, bounded, and issued for one purpose. */
 @Entity('iam.otp')
 export class Otp {
   readonly otpId: string
@@ -156,19 +275,18 @@ export class Otp {
     this.codeHash = record.codeHash
   }
 
-  isUsable(now: Date): boolean {
-    return (
-      this.consumedAt === null &&
-      this.attempts < MAX_OTP_ATTEMPTS &&
-      this.expiresAt.getTime() > now.getTime()
-    )
+  isSpent(): boolean {
+    return this.consumedAt !== null || this.attempts >= MAX_OTP_ATTEMPTS
   }
 
-  /**
-   * A consumed, expired or exhausted code is refused with the same exception a
-   * wrong one gets. Telling them apart tells an attacker which addresses have a
-   * code in flight.
-   */
+  hasExpired(now: Date): boolean {
+    return this.expiresAt.getTime() <= now.getTime()
+  }
+
+  isUsable(now: Date): boolean {
+    return !this.isSpent() && !this.hasExpired(now)
+  }
+
   checkIfUsable(now: Date): void {
     if (!this.isUsable(now)) {
       throw new exceptions.iam.invalidCode()
@@ -180,77 +298,76 @@ export class Otp {
   }
 }
 `,
-    'src/support/code.test.ts': `import { describe, expect, it } from 'vitest'
+    'src/user.entity.ts': `import { exceptions } from '@repo/exceptions'
+import { Entity } from '@turystack/entity'
 
-import { CODE_LENGTH, generateCode, hashCode, verifyCode } from '@/support/code.js'
+import type { UserRecord } from '@/iam.types.js'
+import { verifyPassword } from '@/user.password.js'
 
-describe('generateCode', () => {
-  it('is always the declared number of digits, including when it starts at zero', () => {
-    // A code that is sometimes five digits is a code the form cannot validate.
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      const code = generateCode()
+@Entity('iam.user')
+export class User {
+  readonly userId: string
+  readonly name: string
+  readonly email: string
+  readonly emailVerifiedAt: Date | null
+  readonly phone: string | null
+  readonly phoneVerifiedAt: Date | null
+  readonly locale: string
+  readonly lastSignedInAt: Date | null
 
-      expect(code).toHaveLength(CODE_LENGTH)
-      expect(code).toMatch(/^\\d+$/u)
+  private readonly passwordHash: string | null
+
+  constructor(record: UserRecord) {
+    this.userId = record.userId
+    this.name = record.name
+    this.email = record.email
+    this.emailVerifiedAt = record.emailVerifiedAt
+    this.phone = record.phone
+    this.phoneVerifiedAt = record.phoneVerifiedAt
+    this.locale = record.locale
+    this.lastSignedInAt = record.lastSignedInAt
+    this.passwordHash = record.passwordHash
+  }
+
+  hasPassword(): boolean {
+    return this.passwordHash !== null
+  }
+
+  isEmailVerified(): boolean {
+    return this.emailVerifiedAt !== null
+  }
+
+  isPhoneVerified(): boolean {
+    return this.phoneVerifiedAt !== null
+  }
+
+  checkIfCanSignInWithPassword(): void {
+    if (!this.hasPassword()) {
+      throw new exceptions.iam.invalidCredentials()
     }
-  })
-})
+  }
 
-describe('verifyCode', () => {
-  it('accepts the code it was made from and refuses another', async () => {
-    const stored = await hashCode('123456')
-
-    expect(await verifyCode('123456', stored)).toBe(true)
-    expect(await verifyCode('123457', stored)).toBe(false)
-  })
-})
-`,
-    'src/support/code.ts': `import { randomInt } from 'node:crypto'
-
-import { hashPassword, verifyPassword } from '@/support/password.js'
-
-/** How many digits a one-time code has. */
-export const CODE_LENGTH = 6
-
-/**
- * A one-time code.
- *
- * It is hashed with the same function passwords use: a stolen backup of the
- * \`otp\` table would otherwise be a stolen set of live codes.
- *
- * \`randomInt\` rather than \`Math.random\`: the code is a secret, and a
- * predictable one is not.
- */
-export function generateCode(): string {
-  return String(randomInt(0, 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0')
-}
-
-export function hashCode(code: string): Promise<string> {
-  return hashPassword(code)
-}
-
-export function verifyCode(code: string, stored: string): Promise<boolean> {
-  return verifyPassword(code, stored)
+  verifyCredential(password: string): Promise<boolean> {
+    return verifyPassword(password, this.passwordHash)
+  }
 }
 `,
-    'src/support/password.test.ts': `import { describe, expect, it } from 'vitest'
+    'src/user.password.test.ts': `import { describe, expect, it } from 'vitest'
 
-import { hashPassword, verifyPassword } from '@/support/password.js'
+import { hashPassword, verifyPassword } from '@/user.password.js'
 
 describe('hashPassword', () => {
   it('never produces the same hash twice for the same password', async () => {
-    // The salt is what makes two people with the same password indistinguishable
-    // in a stolen dump.
     const first = await hashPassword('correct horse battery staple')
     const second = await hashPassword('correct horse battery staple')
 
     expect(first).not.toBe(second)
   })
 
-  it('stores the salt beside the key, so the hash verifies itself', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-
-    expect(stored.split(':')).toHaveLength(2)
+  it('stores the salt beside the key', async () => {
+    expect(
+      (await hashPassword('correct horse battery staple')).split(':'),
+    ).toHaveLength(2)
   })
 })
 
@@ -271,18 +388,16 @@ describe('verifyPassword', () => {
     )
   })
 
-  it('refuses when there is no password set, rather than throwing', async () => {
-    // A person who signs in socially has no hash. Asking is not an error; the
-    // answer is simply no.
+  it('refuses when no password is set, rather than throwing', async () => {
     expect(await verifyPassword('anything', null)).toBe(false)
   })
 
-  it('refuses a stored value that is not a hash at all', async () => {
+  it('refuses a stored value that is not a hash', async () => {
     expect(await verifyPassword('anything', 'not-a-hash')).toBe(false)
   })
 })
 `,
-    'src/support/password.ts': `import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
+    'src/user.password.ts': `import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 
 const derive = promisify(scrypt) as (
@@ -294,13 +409,6 @@ const derive = promisify(scrypt) as (
 const KEY_LENGTH = 64
 const SALT_LENGTH = 16
 
-/**
- * scrypt, with the salt stored beside the hash.
- *
- * The comparison is timing-safe and the lengths are checked first, because
- * \`timingSafeEqual\` throws on a length mismatch — and that throw is itself a
- * signal about the stored value.
- */
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(SALT_LENGTH)
   const key = await derive(password, salt, KEY_LENGTH)
@@ -328,64 +436,12 @@ export async function verifyPassword(
   const expected = Buffer.from(key, 'hex')
   const actual = await derive(password, Buffer.from(salt, 'hex'), KEY_LENGTH)
 
+  // timingSafeEqual throws on a length mismatch, and that throw is a signal about the stored value.
   if (expected.length !== actual.length) {
     return false
   }
 
   return timingSafeEqual(expected, actual)
-}
-`,
-    'src/user.entity.ts': `import { Entity } from '@turystack/entity'
-import { exceptions } from '@repo/exceptions'
-
-import type { UserRecord } from '@/iam.types.js'
-import { verifyPassword } from '@/support/password.js'
-
-/** A person, and the rules about proving they are that person. */
-@Entity('iam.user')
-export class User {
-  readonly userId: string
-  readonly name: string
-  readonly email: string
-  readonly emailVerifiedAt: Date | null
-  readonly phone: string | null
-  readonly phoneVerifiedAt: Date | null
-  readonly locale: string
-  readonly lastSignedInAt: Date | null
-
-  /** Never exposed: it leaves this class only through \`verifyCredential\`. */
-  private readonly passwordHash: string | null
-
-  constructor(record: UserRecord) {
-    this.userId = record.userId
-    this.name = record.name
-    this.email = record.email
-    this.emailVerifiedAt = record.emailVerifiedAt
-    this.phone = record.phone
-    this.phoneVerifiedAt = record.phoneVerifiedAt
-    this.locale = record.locale
-    this.lastSignedInAt = record.lastSignedInAt
-    this.passwordHash = record.passwordHash
-  }
-
-  /** Whether this person can sign in with a password at all. */
-  hasPassword(): boolean {
-    return this.passwordHash !== null
-  }
-
-  isEmailVerified(): boolean {
-    return this.emailVerifiedAt !== null
-  }
-
-  checkIfCanSignInWithPassword(): void {
-    if (!this.hasPassword()) {
-      throw new exceptions.iam.invalidCredentials()
-    }
-  }
-
-  verifyCredential(password: string): Promise<boolean> {
-    return verifyPassword(password, this.passwordHash)
-  }
 }
 `,
   }

@@ -257,7 +257,6 @@ export async function completeSignIn(
         window.location.origin,
       ).toString(),
     }),
-    // The session comes back as cookies; without this the browser drops them.
     credentials: 'include',
     headers: {
       'content-type': 'application/json',
@@ -419,8 +418,6 @@ export function AuthProvider({
       }
     }
 
-    // Signed in: renew shortly before the access cookie expires, so a long
-    // session never surfaces as a failed request the user has to retry.
     const delay = Math.max(0, phase.session.expiresAt - Date.now() - RENEW_MARGIN)
     const timer = window.setTimeout(() => {
       void refreshSession().then((session) => {
@@ -615,10 +612,6 @@ export function takeVerifier(): {
     'tsconfig.build.json': `${JSON.stringify(
       {
         compilerOptions: {
-          // The web config this extends is written for an application Vite
-          // compiles, so it sets `noEmit` and allows `.ts` in a specifier.
-          // A project the solution references may do neither: the reference
-          // exists precisely so `tsc -b` produces its `dist`.
           allowImportingTsExtensions: false,
           composite: true,
           noEmit: false,
@@ -641,8 +634,6 @@ export function takeVerifier(): {
           declaration: true,
           declarationMap: true,
           outDir: './dist',
-          // Every import here is `@/…`, like everywhere else, and `tsc-alias`
-          // rewrites it in the emitted JavaScript.
           paths: {
             '@/*': [
               './src/*',
@@ -654,11 +645,6 @@ export function takeVerifier(): {
           'node_modules',
           'dist',
         ],
-        // The whole package is compiled with the web config, both halves.
-        // The data half needs no DOM and does not mind having it; the React
-        // half cannot be consumed as source, because then its imports would be
-        // resolved by the application's tsconfig, where `@/` means the
-        // application's own `src`.
         extends: '@turystack/frontend-config/tsconfig.web.json',
         include: [
           'src/**/*.ts',

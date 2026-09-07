@@ -5,105 +5,34 @@
  * than one row has to be true at once.
  *
  * Signing up writes four rows — the person, their organization, its first
- * workspace and the membership that ties them — and any three of them without
- * the fourth is an account nobody can use. So it is one transaction.
+ * workspace and the membership that ties them — and any three without the
+ * fourth is an account that exists and does not work.
  */
 export function renderUseCases(): Record<string, string> {
   return {
-    'src/support/slug.test.ts': `import { describe, expect, it } from 'vitest'
-
-import { slugify } from '@/support/slug.js'
-
-describe('slugify', () => {
-  it('keeps the letters an accent was written on', () => {
-    // Dropping them instead turns "Operações" into "opera-es", which is not a
-    // name anybody recognises.
-    expect(slugify('Operações')).toBe('operacoes')
-  })
-
-  it('collapses everything that cannot appear in a URL', () => {
-    expect(slugify('Acme  Viagens & Turismo!')).toBe('acme-viagens-turismo')
-  })
-
-  it('never answers with an empty string', () => {
-    // A name written entirely in punctuation still has to become a slug the
-    // unique index can hold.
-    expect(slugify('!!!')).toBe('organization')
-  })
-})
-`,
-    'src/support/slug.ts': `/**
- * A name as it appears in a URL.
- *
- * Accents are stripped rather than dropped, so "Operações" becomes
- * "operacoes" instead of "opera-es".
- */
-export function slugify(name: string): string {
-  const slug = name
-    .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, '-')
-    .replace(/^-+|-+$/gu, '')
-
-  return slug === '' ? 'organization' : slug
-}
-`,
-    'src/use-cases/get-profile/get-profile.ts': `import { Injectable } from '@nestjs/common'
+    'src/use-cases/get-profile/get-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
+import { DatabaseService } from '@repo/database'
 import { exceptions } from '@repo/exceptions'
 
 import { MembershipRepository } from '@/membership.repository.js'
 import { OrganizationRepository } from '@/organization.repository.js'
 import { RoleRepository } from '@/role.repository.js'
+import type { Profile } from '@/use-cases/get-profile/get-profile.types.js'
 import { UserRepository } from '@/user.repository.js'
-import { WorkspaceRepository } from '@/workspace.repository.js'
 
-export type Profile = {
-  user: {
-    userId: string
-    name: string
-    email: string
-    emailVerified: boolean
-    phone: string | null
-    phoneVerified: boolean
-    locale: string
-  }
-  organization: {
-    organizationId: string
-    name: string
-    slug: string
-    workspaceMode: string
-    status: string
-  }
-  workspaces: {
-    workspaceId: string
-    name: string
-    slug: string
-    isDefault: boolean
-  }[]
-  role: {
-    roleId: string
-    key: string
-    name: string
-  } | null
-  permissions: string[]
-}
-
-/**
- * Everything an application needs about the person it just let in.
- *
- * One call, because the alternative is four round trips on the first paint —
- * and because the scope, the role and the permissions have to describe the same
- * moment.
- */
 @Injectable()
 export class GetProfile {
   constructor(
+    @Inject(UserRepository)
     private readonly users: UserRepository,
+    @Inject(OrganizationRepository)
     private readonly organizations: OrganizationRepository,
-    private readonly workspaces: WorkspaceRepository,
+    @Inject(MembershipRepository)
     private readonly memberships: MembershipRepository,
+    @Inject(RoleRepository)
     private readonly roles: RoleRepository,
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
   ) {}
 
   async execute(input: {
@@ -137,9 +66,6 @@ export class GetProfile {
       userId: input.userId,
     })
 
-    // The row was fetched by id and the entity refuses what is not in scope,
-    // rather than the query hiding it — a resource that belongs to someone
-    // else is a denial, not a "not found".
     membership?.checkOrganization(input.organizationId)
 
     const role = membership
@@ -147,6 +73,10 @@ export class GetProfile {
           roleId: membership.roleId,
         })
       : null
+    const workspaces = await this.db.workspace.findMany({
+      where: (fields, { eq }) =>
+        eq(fields.organizationId, input.organizationId),
+    })
 
     return {
       organization: {
@@ -174,14 +104,10 @@ export class GetProfile {
         locale: user.locale,
         name: user.name,
         phone: user.phone,
-        phoneVerified: user.phoneVerifiedAt !== null,
+        phoneVerified: user.isPhoneVerified(),
         userId: user.userId,
       },
-      workspaces: (
-        await this.workspaces.findMany({
-          organizationId: input.organizationId,
-        })
-      ).map((workspace) => ({
+      workspaces: workspaces.map((workspace) => ({
         isDefault: workspace.isDefault,
         name: workspace.name,
         slug: workspace.slug,
@@ -191,30 +117,55 @@ export class GetProfile {
   }
 }
 `,
-    'src/use-cases/request-code/request-code.ts': `import { Injectable } from '@nestjs/common'
-
+    'src/use-cases/get-profile/get-profile.types.ts': `export type Profile = {
+  user: {
+    userId: string
+    name: string
+    email: string
+    emailVerified: boolean
+    phone: string | null
+    phoneVerified: boolean
+    locale: string
+  }
+  organization: {
+    organizationId: string
+    name: string
+    slug: string
+    workspaceMode: string
+    status: string
+  }
+  workspaces: {
+    workspaceId: string
+    name: string
+    slug: string
+    isDefault: boolean
+  }[]
+  role: {
+    roleId: string
+    key: string
+    name: string
+  } | null
+  permissions: string[]
+}
+`,
+    'src/use-cases/request-code/request-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
 
 import type { RequestCodeInput } from '@/iam.types.js'
+import { generateCode, hashCode } from '@/otp.code.js'
 import { OtpRepository } from '@/otp.repository.js'
-import { generateCode, hashCode } from '@/support/code.js'
 import { UserRepository } from '@/user.repository.js'
 
-/** How long a code stays usable. */
 export const CODE_TTL_MINUTES = 10
 
-/**
- * Issues a one-time code, and answers the same way whether or not the address
- * belongs to anyone.
- *
- * The plaintext is returned so the caller can deliver it. It is never stored:
- * the row holds a hash, so a stolen backup is not a stolen set of live codes.
- */
 @Injectable()
 export class RequestCode {
   constructor(
+    @Inject(UserRepository)
     private readonly users: UserRepository,
+    @Inject(OtpRepository)
     private readonly otps: OtpRepository,
+    @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
 
@@ -224,8 +175,6 @@ export class RequestCode {
     })
 
     if (!user) {
-      // No code, and no complaint: "that address has no account" is an answer
-      // worth enumerating.
       return {
         code: null,
       }
@@ -238,8 +187,6 @@ export class RequestCode {
       codeHash: await hashCode(code),
       expiresAt: this.clock.in(CODE_TTL_MINUTES * 60_000),
       purpose: input.purpose,
-      // Frozen at issue: changing the address afterwards does not retarget a
-      // code already sent.
       target: user.email,
       userId: user.userId,
     })
@@ -250,23 +197,18 @@ export class RequestCode {
   }
 }
 `,
-    'src/use-cases/resolve-profile/resolve-profile.ts': `import { Injectable } from '@nestjs/common'
-import type { IamProfile, IamProfileResolver } from '@turystack/nestjs-iam'
+    'src/use-cases/resolve-profile/resolve-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
+import type { IamProfile, IamProfileResolver, IamRole } from '@turystack/nestjs-iam'
 
 import { MembershipRepository } from '@/membership.repository.js'
 import { RoleRepository } from '@/role.repository.js'
 
-/**
- * The bridge IAM asks for: a user id in, the scope and its permissions out.
- *
- * A membership with no workspace is the organization-wide role; one with a
- * workspace narrows inside it. Both can exist for the same person, and IAM
- * carries at most one of each.
- */
 @Injectable()
 export class ResolveProfile implements IamProfileResolver {
   constructor(
+    @Inject(MembershipRepository)
     private readonly memberships: MembershipRepository,
+    @Inject(RoleRepository)
     private readonly roles: RoleRepository,
   ) {}
 
@@ -290,15 +232,11 @@ export class ResolveProfile implements IamProfileResolver {
       return null
     }
 
-    const organizationRole = organizationMembership
-      ? await this.describe(organizationMembership.roleId)
-      : undefined
-
     return {
       organizationId: scope.organizationId,
-      ...(organizationRole
+      ...(organizationMembership
         ? {
-            organizationRole,
+            organizationRole: await this.describe(organizationMembership.roleId),
           }
         : {}),
       ...(workspaceMembership
@@ -313,11 +251,7 @@ export class ResolveProfile implements IamProfileResolver {
     }
   }
 
-  private async describe(roleId: string): Promise<{
-    name: string
-    permissionIds: string[]
-    roleId: string
-  }> {
+  private async describe(roleId: string): Promise<IamRole> {
     const role = await this.roles.find({
       roleId,
     })
@@ -332,46 +266,41 @@ export class ResolveProfile implements IamProfileResolver {
   }
 }
 `,
-    'src/use-cases/seed-iam/seed-iam.ts': `import { Injectable, Logger } from '@nestjs/common'
+    'src/use-cases/seed-iam/seed-iam.ts': `import { Inject, Injectable, Logger } from '@nestjs/common'
+import { DatabaseService } from '@repo/database'
 import { Transactional } from '@turystack/nestjs-database'
+import { uuidv7 } from 'uuidv7'
 
 import {
   PERMISSIONS,
   PLATFORM_ORGANIZATION_SLUG,
   SYSTEM_ROLES,
 } from '@/iam.permissions.js'
+import type { RoleSeed } from '@/iam.types.js'
 import { OrganizationRepository } from '@/organization.repository.js'
-import { PermissionRepository } from '@/permission.repository.js'
 import { RoleRepository } from '@/role.repository.js'
-import { WorkspaceRepository } from '@/workspace.repository.js'
 
-/**
- * Brings the database in line with the catalogue in the source.
- *
- * Idempotent, because it runs on every deploy: it inserts what is missing and
- * reports what the table holds and the code does not. That report is the
- * important half — a permission that disappeared from the source while roles
- * still grant it means people hold access to something no longer implemented.
- */
 @Injectable()
 export class SeedIam {
   private readonly logger = new Logger(SeedIam.name)
 
   constructor(
+    @Inject(OrganizationRepository)
     private readonly organizations: OrganizationRepository,
-    private readonly workspaces: WorkspaceRepository,
-    private readonly permissions: PermissionRepository,
+    @Inject(RoleRepository)
     private readonly roles: RoleRepository,
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
   ) {}
 
   @Transactional()
   async execute(): Promise<void> {
     await this.seedPlatform()
 
-    const byKey = await this.seedPermissions()
+    const permissionIds = await this.seedPermissions()
 
-    for (const seed of SYSTEM_ROLES) {
-      await this.seedRole(seed, byKey)
+    for (const role of SYSTEM_ROLES) {
+      await this.seedRole(role, permissionIds)
     }
   }
 
@@ -391,16 +320,17 @@ export class SeedIam {
       workspaceMode: 'MULTI',
     })
 
-    await this.workspaces.create({
+    await this.db.workspace.create({
       isDefault: true,
       name: 'Platform',
       organizationId: organization.organizationId,
       slug: 'default',
+      workspaceId: uuidv7(),
     })
   }
 
   private async seedPermissions(): Promise<Map<string, string>> {
-    const stored = await this.permissions.findMany()
+    const stored = await this.db.permission.findMany()
     const byKey = new Map(stored.map((row) => [row.key, row.permissionId]))
 
     for (const permission of PERMISSIONS) {
@@ -408,7 +338,13 @@ export class SeedIam {
         continue
       }
 
-      const created = await this.permissions.create(permission)
+      const created = await this.db.permission.create({
+        audience: permission.audience,
+        description: permission.description,
+        key: permission.key,
+        permissionId: uuidv7(),
+      })
+
       byKey.set(created.key, created.permissionId)
     }
 
@@ -428,8 +364,8 @@ export class SeedIam {
   }
 
   private async seedRole(
-    seed: (typeof SYSTEM_ROLES)[number],
-    byKey: Map<string, string>,
+    seed: RoleSeed,
+    permissionIds: Map<string, string>,
   ): Promise<void> {
     const existing = await this.roles.findByKey({
       key: seed.key,
@@ -444,13 +380,11 @@ export class SeedIam {
       key: seed.key,
       kind: seed.kind,
       name: seed.name,
-      // ENVIRONMENT and BACKOFFICE roles belong to no customer; the kind is
-      // what says which of the two, because the null cannot.
       organizationId: null,
     })
 
     for (const key of seed.permissions) {
-      const permissionId = byKey.get(key)
+      const permissionId = permissionIds.get(key)
 
       if (permissionId) {
         await this.roles.grant({
@@ -462,28 +396,24 @@ export class SeedIam {
   }
 }
 `,
-    'src/use-cases/sign-in-with-code/sign-in-with-code.ts': `import { Injectable } from '@nestjs/common'
+    'src/use-cases/sign-in-with-code/sign-in-with-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { exceptions } from '@repo/exceptions'
-import { Transactional } from '@turystack/nestjs-database'
-
 import { ClockService } from '@turystack/nestjs-context'
+import { Transactional } from '@turystack/nestjs-database'
 
 import type { SignInWithCodeInput } from '@/iam.types.js'
 import { OtpRepository } from '@/otp.repository.js'
 import type { User } from '@/user.entity.js'
 import { UserRepository } from '@/user.repository.js'
 
-/**
- * Consumes a code and signs the person in.
- *
- * The code is spent in the same transaction that accepts it, so two requests
- * racing on the same code cannot both succeed.
- */
 @Injectable()
 export class SignInWithCode {
   constructor(
+    @Inject(UserRepository)
     private readonly users: UserRepository,
+    @Inject(OtpRepository)
     private readonly otps: OtpRepository,
+    @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
 
@@ -510,8 +440,6 @@ export class SignInWithCode {
     otp.checkIfUsable(now)
 
     if (!(await otp.verifyCode(input.code))) {
-      // A wrong attempt costs one of the few this code has, which is what
-      // makes guessing six digits pointless.
       await this.otps.countAttempt({
         attempts: otp.attempts,
         otpId: otp.otpId,
@@ -537,25 +465,122 @@ export class SignInWithCode {
   }
 }
 `,
-    'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Injectable } from '@nestjs/common'
-import { exceptions } from '@repo/exceptions'
+    'src/use-cases/sign-in-with-password/sign-in-with-password.test.ts': `import { describe, expect, it, vi } from 'vitest'
 
+import { mockUser } from '@/iam.mock.js'
+import { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
+import { hashPassword } from '@/user.password.js'
+import type { UserRepository } from '@/user.repository.js'
+
+const clock = {
+  in: (milliseconds: number) => new Date(milliseconds),
+  now: () => new Date('2026-09-07T12:00:00.000Z'),
+  timestamp: () => Date.parse('2026-09-07T12:00:00.000Z'),
+}
+
+function build(user: ReturnType<typeof mockUser> | null) {
+  const users = {
+    findByEmail: vi.fn().mockResolvedValue(user),
+    update: vi.fn().mockResolvedValue(undefined),
+  }
+
+  return {
+    signIn: new SignInWithPassword(users as unknown as UserRepository, clock),
+    users,
+  }
+}
+
+describe('SignInWithPassword', () => {
+  it('answers with the person when the password matches', async () => {
+    const user = mockUser({
+      passwordHash: await hashPassword('correct horse battery staple'),
+    })
+    const { signIn, users } = build(user)
+
+    expect(
+      await signIn.execute({
+        email: 'ana@acme.test',
+        password: 'correct horse battery staple',
+      }),
+    ).toBe(user)
+    expect(users.update).toHaveBeenCalledWith({
+      data: {
+        lastSignedInAt: clock.now(),
+      },
+      userId: user.userId,
+    })
+  })
+
+  it('refuses a wrong password without recording a sign-in', async () => {
+    const { signIn, users } = build(
+      mockUser({
+        passwordHash: await hashPassword('correct horse battery staple'),
+      }),
+    )
+
+    await expect(
+      signIn.execute({
+        email: 'ana@acme.test',
+        password: 'wrong',
+      }),
+    ).rejects.toThrow()
+    expect(users.update).not.toHaveBeenCalled()
+  })
+
+  it('answers an unknown address exactly like a wrong password', async () => {
+    const missing = build(null)
+    const wrong = build(
+      mockUser({
+        passwordHash: await hashPassword('correct horse battery staple'),
+      }),
+    )
+
+    const first = await missing.signIn
+      .execute({
+        email: 'nobody@acme.test',
+        password: 'whatever',
+      })
+      .catch((error: Error) => error.message)
+    const second = await wrong.signIn
+      .execute({
+        email: 'ana@acme.test',
+        password: 'whatever',
+      })
+      .catch((error: Error) => error.message)
+
+    expect(first).toBe(second)
+  })
+
+  it('refuses a person who signs in socially and has no password', async () => {
+    const { signIn } = build(
+      mockUser({
+        passwordHash: null,
+      }),
+    )
+
+    await expect(
+      signIn.execute({
+        email: 'ana@acme.test',
+        password: 'anything',
+      }),
+    ).rejects.toThrow()
+  })
+})
+`,
+    'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Inject, Injectable } from '@nestjs/common'
+import { exceptions } from '@repo/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 
 import type { SignInWithPasswordInput } from '@/iam.types.js'
 import type { User } from '@/user.entity.js'
 import { UserRepository } from '@/user.repository.js'
 
-/**
- * Sign-in identifies the person, not the tenant.
- *
- * Which organization they are acting for is a second step, because a person
- * with memberships in three organizations signs in once and then picks.
- */
 @Injectable()
 export class SignInWithPassword {
   constructor(
+    @Inject(UserRepository)
     private readonly users: UserRepository,
+    @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
 
@@ -565,8 +590,6 @@ export class SignInWithPassword {
     })
 
     if (!user) {
-      // The same exception a wrong password gets: a different answer here tells
-      // an attacker which addresses have accounts.
       throw new exceptions.iam.invalidCredentials()
     }
 
@@ -587,36 +610,35 @@ export class SignInWithPassword {
   }
 }
 `,
-    'src/use-cases/sign-in-with-provider/sign-in-with-provider.ts': `import { Injectable } from '@nestjs/common'
+    'src/use-cases/sign-in-with-provider/sign-in-with-provider.ts': `import { Inject, Injectable } from '@nestjs/common'
+import { DatabaseService } from '@repo/database'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
+import { uuidv7 } from 'uuidv7'
 
 import { FOUNDER_ROLE_KEY } from '@/iam.permissions.js'
 import type { SocialProfile } from '@/iam.types.js'
 import { MembershipRepository } from '@/membership.repository.js'
 import { OrganizationRepository } from '@/organization.repository.js'
+import { slugify } from '@/organization.slug.js'
 import { RoleRepository } from '@/role.repository.js'
-import { slugify } from '@/support/slug.js'
 import type { User } from '@/user.entity.js'
 import { UserRepository } from '@/user.repository.js'
-import { WorkspaceRepository } from '@/workspace.repository.js'
 
-/**
- * Signing in through a provider, which is also a sign-up the first time.
- *
- * The provider's subject is what identifies the account, never the e-mail: an
- * address changes hands, and some providers do not return one at all. When the
- * address does match a person who signed up with a password, the provider is
- * linked to them rather than becoming a second account.
- */
 @Injectable()
 export class SignInWithProvider {
   constructor(
+    @Inject(UserRepository)
     private readonly users: UserRepository,
+    @Inject(OrganizationRepository)
     private readonly organizations: OrganizationRepository,
-    private readonly workspaces: WorkspaceRepository,
+    @Inject(MembershipRepository)
     private readonly memberships: MembershipRepository,
+    @Inject(RoleRepository)
     private readonly roles: RoleRepository,
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+    @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
 
@@ -654,9 +676,9 @@ export class SignInWithProvider {
       key: FOUNDER_ROLE_KEY,
     })
     const user = await this.users.create({
-      email: profile.email ?? \`\${profile.id}@\${profile.provider.toLowerCase()}.local\`,
-      // The provider verified the address; taking its word is the point of
-      // signing in with one.
+      email:
+        profile.email ??
+        \`\${profile.id}@\${profile.provider.toLowerCase()}.local\`,
       emailVerifiedAt: profile.email ? this.clock.now() : null,
       name,
       passwordHash: null,
@@ -674,11 +696,12 @@ export class SignInWithProvider {
       workspaceMode: 'SINGLE',
     })
 
-    await this.workspaces.create({
+    await this.db.workspace.create({
       isDefault: true,
       name,
       organizationId: organization.organizationId,
       slug: 'default',
+      workspaceId: uuidv7(),
     })
 
     if (founderRole) {
@@ -693,38 +716,39 @@ export class SignInWithProvider {
   }
 }
 `,
-    'src/use-cases/sign-up/sign-up.ts': `import { Injectable } from '@nestjs/common'
+    'src/use-cases/sign-up/sign-up.ts': `import { Inject, Injectable } from '@nestjs/common'
+import { DatabaseService } from '@repo/database'
 import { exceptions } from '@repo/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
+import { uuidv7 } from 'uuidv7'
 
 import { FOUNDER_ROLE_KEY } from '@/iam.permissions.js'
 import type { SignUpInput } from '@/iam.types.js'
 import { MembershipRepository } from '@/membership.repository.js'
 import { OrganizationRepository } from '@/organization.repository.js'
+import { slugify } from '@/organization.slug.js'
 import { RoleRepository } from '@/role.repository.js'
-import { slugify } from '@/support/slug.js'
-import { hashPassword } from '@/support/password.js'
-import { UserRepository } from '@/user.repository.js'
-import { WorkspaceRepository } from '@/workspace.repository.js'
 import type { User } from '@/user.entity.js'
+import { hashPassword } from '@/user.password.js'
+import { UserRepository } from '@/user.repository.js'
 
-/**
- * A person, their organization, its first workspace, and the membership that
- * makes them its owner.
- *
- * All four or none: an organization with no owner cannot be administered, and a
- * person with no membership cannot resolve a scope — either half is an account
- * that exists and does not work.
- */
+const MAX_SLUG_ATTEMPTS = 50
+
 @Injectable()
 export class SignUp {
   constructor(
+    @Inject(UserRepository)
     private readonly users: UserRepository,
+    @Inject(OrganizationRepository)
     private readonly organizations: OrganizationRepository,
-    private readonly workspaces: WorkspaceRepository,
+    @Inject(MembershipRepository)
     private readonly memberships: MembershipRepository,
+    @Inject(RoleRepository)
     private readonly roles: RoleRepository,
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
+    @Inject(ClockService)
     private readonly clock: ClockService,
   ) {}
 
@@ -745,8 +769,6 @@ export class SignUp {
     })
 
     if (!founderRole) {
-      // The seed has not run. Failing here is right: the alternative is an
-      // organization whose owner holds no permissions at all.
       throw new exceptions.iam.roleNotFound({
         key: FOUNDER_ROLE_KEY,
       })
@@ -761,15 +783,16 @@ export class SignUp {
     const organization = await this.organizations.create({
       kind: 'CUSTOMER',
       name: input.organizationName,
-      slug: await this.uniqueSlug(input.organizationName),
+      slug: await this.availableSlug(input.organizationName),
       workspaceMode: 'SINGLE',
     })
 
-    await this.workspaces.create({
+    await this.db.workspace.create({
       isDefault: true,
       name: input.organizationName,
       organizationId: organization.organizationId,
       slug: 'default',
+      workspaceId: uuidv7(),
     })
 
     await this.memberships.create({
@@ -781,17 +804,10 @@ export class SignUp {
     return user
   }
 
-  /**
-   * The slug people will type, with a suffix only when it is taken.
-   *
-   * The unique index is what actually guarantees it; this loop is what keeps
-   * the second customer called "Acme" from meeting a constraint violation
-   * instead of a working account.
-   */
-  private async uniqueSlug(name: string): Promise<string> {
+  private async availableSlug(name: string): Promise<string> {
     const base = slugify(name)
 
-    for (let suffix = 0; suffix < 50; suffix += 1) {
+    for (let suffix = 0; suffix < MAX_SLUG_ATTEMPTS; suffix += 1) {
       const candidate = suffix === 0 ? base : \`\${base}-\${suffix}\`
       const taken = await this.organizations.findBySlug({
         slug: candidate,
@@ -806,24 +822,18 @@ export class SignUp {
   }
 }
 `,
-    'src/use-cases/update-profile/update-profile.ts': `import { Injectable } from '@nestjs/common'
+    'src/use-cases/update-profile/update-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
 
 import { UserRepository } from '@/user.repository.js'
 
-/**
- * The parts of themselves a person may change.
- *
- * Not the e-mail: changing it changes the credential, and that is a verified
- * flow of its own rather than a field on this form.
- */
 @Injectable()
 export class UpdateProfile {
-  constructor(private readonly users: UserRepository) {}
+  constructor(
+    @Inject(UserRepository)
+    private readonly users: UserRepository,
+  ) {}
 
-  async execute(input: {
-    name?: string
-    userId: string
-  }): Promise<void> {
+  async execute(input: { name?: string; userId: string }): Promise<void> {
     await this.users.update({
       data: {
         ...(input.name === undefined
