@@ -187,7 +187,12 @@ export function oauthClients(
     'src/react/auth-client.ts': `import { CLIENTS } from '@/clients.js'
 
 import { createVerifier, deriveChallenge } from './pkce.js'
-import { rememberVerifier, takeVerifier, type Session } from './session.js'
+import {
+  clearVerifier,
+  readVerifier,
+  rememberVerifier,
+  type Session,
+} from './session.js'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL as string
 
@@ -241,7 +246,7 @@ export async function completeSignIn(
     throw new Error(\`Unknown OAuth client: \${client}\`)
   }
 
-  const { returnTo, verifier } = takeVerifier()
+  const { returnTo, verifier } = readVerifier()
 
   if (!verifier) {
     throw new Error('This sign-in did not start here. Try again.')
@@ -267,6 +272,8 @@ export async function completeSignIn(
   if (!response.ok) {
     throw new Error('Could not complete sign-in.')
   }
+
+  clearVerifier()
 
   return {
     returnTo,
@@ -310,6 +317,18 @@ import {
 
 /** Renew this many milliseconds before the access token actually expires. */
 const RENEW_MARGIN = 60_000
+
+/**
+ * One exchange per authorization code.
+ *
+ * The code is single-use and React runs an effect twice in development, so the
+ * second attempt is refused — and the refusal is indistinguishable from a
+ * failed sign-in, which sends a signed-in person back to sign in again.
+ */
+const pendingExchanges = new Map<
+  string,
+  ReturnType<typeof completeSignIn>
+>()
 
 type Phase =
   | {
@@ -390,8 +409,12 @@ export function AuthProvider({
 
     if (phase.kind === 'callback') {
       let cancelled = false
+      const exchange =
+        pendingExchanges.get(phase.code) ?? completeSignIn(client, phase.code)
 
-      void completeSignIn(client, phase.code)
+      pendingExchanges.set(phase.code, exchange)
+
+      void exchange
         .then(({ returnTo, session }) => {
           if (cancelled) {
             return
@@ -588,16 +611,13 @@ export function rememberVerifier(verifier: string, returnTo: string): void {
   }, undefined)
 }
 
-export function takeVerifier(): {
+export function readVerifier(): {
   returnTo: string
   verifier: string | null
 } {
   return safely(() => {
     const verifier = sessionStorage.getItem(VERIFIER_KEY)
     const returnTo = sessionStorage.getItem(RETURN_KEY) ?? '/'
-
-    sessionStorage.removeItem(VERIFIER_KEY)
-    sessionStorage.removeItem(RETURN_KEY)
 
     return {
       returnTo,
@@ -607,6 +627,13 @@ export function takeVerifier(): {
     returnTo: '/',
     verifier: null,
   })
+}
+
+export function clearVerifier(): void {
+  safely(() => {
+    sessionStorage.removeItem(VERIFIER_KEY)
+    sessionStorage.removeItem(RETURN_KEY)
+  }, undefined)
 }
 `,
     'tsconfig.build.json': `${JSON.stringify(
