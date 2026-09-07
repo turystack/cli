@@ -85,12 +85,9 @@ function renderAppModule(context: ApiTemplateContext): string {
   return `import { Module } from '@nestjs/common'
 import { databaseRelations, databaseSchema } from '@repo/database'
 import {
-  IdentityRepository,
-  RegisterIdentity,
+  IAM_PROVIDERS,
   ResolveProfile,
-  SignInWithPassword,
-  SignInWithProvider,
-} from '@repo/identity'
+} from '@repo/iam'
 import { oauthClients } from '@repo/oauth-clients'
 import { ConfigModule } from '@turystack/nestjs-config'
 import { DatabaseModule } from '@turystack/nestjs-database'
@@ -150,11 +147,7 @@ ${origins ? `${origins}\n` : ''}        // turystack:audience-origins
     })),
   ],
   providers: [
-    IdentityRepository,
-    RegisterIdentity,
-    ResolveProfile,
-    SignInWithPassword,
-    SignInWithProvider,
+    ...IAM_PROVIDERS,
   ],
 })
 export class AppModule {}
@@ -164,12 +157,16 @@ export class AppModule {}
 function renderAuthController(): string {
   return `import { Body, Inject } from '@nestjs/common'
 import {
-  RegisterIdentity,
-  registerIdentitySchema,
+  RequestCode,
+  requestCodeSchema,
+  SignInWithCode,
+  signInWithCodeSchema,
   SignInWithPassword,
   signInWithPasswordSchema,
   SignInWithProvider,
-} from '@repo/identity'
+  SignUp,
+  signUpSchema,
+} from '@repo/iam'
 import { OAuthService } from '@turystack/nestjs-oauth'
 import { Controller, Route } from '@turystack/nestjs-server'
 import {
@@ -197,7 +194,15 @@ const withTransaction = z.object({
 })
 
 const signInBody = signInWithPasswordSchema.extend(withTransaction.shape)
-const signUpBody = registerIdentitySchema.extend(withTransaction.shape)
+const signUpBody = signUpSchema.extend(withTransaction.shape)
+const codeBody = signInWithCodeSchema.extend(withTransaction.shape)
+const requestCodeBody = requestCodeSchema
+const requestCodeResponse = z.object({
+  // Always true: whether the address has an account is not something this
+  // endpoint answers.
+  sent: z.boolean(),
+})
+
 const socialBody = withTransaction.extend({
   idToken: z.string().min(1),
   provider: z.enum([
@@ -216,12 +221,16 @@ export class AuthController {
   constructor(
     @Inject(OAuthService)
     private readonly oauth: OAuthService,
-    @Inject(RegisterIdentity)
-    private readonly registerIdentity: RegisterIdentity,
+    @Inject(SignUp)
+    private readonly signUpUseCase: SignUp,
     @Inject(SignInWithPassword)
     private readonly signInWithPassword: SignInWithPassword,
     @Inject(SignInWithProvider)
     private readonly signInWithProvider: SignInWithProvider,
+    @Inject(RequestCode)
+    private readonly requestCode: RequestCode,
+    @Inject(SignInWithCode)
+    private readonly signInWithCode: SignInWithCode,
     @Inject(SocialAuthService)
     private readonly socialAuth: SocialAuthService,
   ) {}
@@ -242,10 +251,10 @@ export class AuthController {
   async signIn(
     @Body() body: z.infer<typeof signInBody>,
   ): Promise<z.infer<typeof redirectResponse>> {
-    const identity = await this.signInWithPassword.execute(body)
+    const user = await this.signInWithPassword.execute(body)
 
     return {
-      redirectTo: await this.oauth.completeAuthorization(body.tx, identity.id),
+      redirectTo: await this.oauth.completeAuthorization(body.tx, user.userId),
     }
   }
 
@@ -265,10 +274,59 @@ export class AuthController {
   async signUp(
     @Body() body: z.infer<typeof signUpBody>,
   ): Promise<z.infer<typeof redirectResponse>> {
-    const identity = await this.registerIdentity.execute(body)
+    const user = await this.signUpUseCase.execute(body)
 
     return {
-      redirectTo: await this.oauth.completeAuthorization(body.tx, identity.id),
+      redirectTo: await this.oauth.completeAuthorization(body.tx, user.userId),
+    }
+  }
+
+  @Route({
+    description:
+      'Sends a one-time code to the address, if it belongs to an account.',
+    method: 'POST',
+    parameters: {
+      body: requestCodeBody,
+    },
+    path: 'code',
+    responses: {
+      200: requestCodeResponse,
+    },
+    summary: 'Request a sign-in code',
+  })
+  async code(
+    @Body() body: z.infer<typeof requestCodeBody>,
+  ): Promise<z.infer<typeof requestCodeResponse>> {
+    // The code is returned by the use case so a delivery adapter can send it.
+    // Until there is one, it goes nowhere — and the response still says the
+    // same thing either way, because "no account here" is worth enumerating.
+    await this.requestCode.execute(body)
+
+    return {
+      sent: true,
+    }
+  }
+
+  @Route({
+    description:
+      'Signs in with a one-time code, and completes the pending authorization.',
+    method: 'POST',
+    parameters: {
+      body: codeBody,
+    },
+    path: 'sign-in-with-code',
+    responses: {
+      200: redirectResponse,
+    },
+    summary: 'Sign in with a code',
+  })
+  async signInWithCodeRoute(
+    @Body() body: z.infer<typeof codeBody>,
+  ): Promise<z.infer<typeof redirectResponse>> {
+    const user = await this.signInWithCode.execute(body)
+
+    return {
+      redirectTo: await this.oauth.completeAuthorization(body.tx, user.userId),
     }
   }
 
@@ -295,7 +353,7 @@ export class AuthController {
       body.provider as SocialAuthProvider,
       body.idToken,
     )
-    const identity = await this.signInWithProvider.execute({
+    const user = await this.signInWithProvider.execute({
       email: profile.email,
       id: profile.id,
       name: 'name' in profile ? profile.name : null,
@@ -303,7 +361,7 @@ export class AuthController {
     })
 
     return {
-      redirectTo: await this.oauth.completeAuthorization(body.tx, identity.id),
+      redirectTo: await this.oauth.completeAuthorization(body.tx, user.userId),
     }
   }
 }
@@ -519,7 +577,7 @@ describe('configSchema', () => {
           '../../packages/exceptions/tsconfig.build.json',
           '../../packages/database/tsconfig.build.json',
           '../../packages/oauth-clients/tsconfig.build.json',
-          '../../domains/identity/tsconfig.build.json',
+          '../../domains/iam/tsconfig.build.json',
         ].map((path) => ({
           path,
         })),

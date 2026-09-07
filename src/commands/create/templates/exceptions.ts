@@ -49,18 +49,33 @@ export function generateExceptionsFiles(context: {
 /**
  * The product's error catalogue — one catalogue, for every domain and app.
  *
- * The identity module exists because signing in already needs it. Everything a
- * new domain raises is added here, never inside the domain: one catalogue is
- * what lets a frontend map a code to a reason without keeping a second list in
+ * The \`iam\` module exists because signing in already needs it. Everything a new
+ * domain raises is added here, never inside the domain: one catalogue is what
+ * lets a frontend map a code to a reason without keeping a second list in
  * agreement with this one.
  */
 export const exceptions = createExceptions((e) => ({
-  identity: e.module('identity', {
+  iam: e.module('iam', {
     conflict: [
       'already_registered',
+      'single_workspace_organization',
+      'workspace_already_exists',
+    ],
+    forbidden: [
+      'organization_suspended',
+      'membership_suspended',
+      'out_of_scope',
+      'backoffice_role_outside_platform',
+    ],
+    notFound: [
+      'organization_not_found',
+      'role_not_found',
+      'user_not_found',
     ],
     unauthorized: [
       'invalid_credentials',
+      'invalid_code',
+      'invitation_not_acceptable',
     ],
   }),
 }))

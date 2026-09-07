@@ -13,6 +13,17 @@ export async function runCommand(
   args: string[],
   cwd: string,
   label: string,
+  options: {
+    /**
+     * Exit codes to treat as success.
+     *
+     * `biome check --write` answers 1 when it fixed what it could and a finding
+     * remains, which is a report rather than a failure — and treating it as one
+     * abandoned every subtree after the first, leaving them formatted by
+     * nothing at all.
+     */
+    allow?: number[]
+  } = {},
 ): Promise<void> {
   await new Promise<void>((resolvePromise, reject) => {
     let output = ''
@@ -35,7 +46,7 @@ export async function runCommand(
       reject(new Error(`${label} could not start: ${error.message}`))
     })
     child.on('exit', (code) => {
-      if (code === 0) {
+      if (code === 0 || (code !== null && options.allow?.includes(code))) {
         resolvePromise()
 
         return

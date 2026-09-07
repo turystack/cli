@@ -88,7 +88,7 @@ ${inner}
 function renderSignInRoute(context: WebTemplateContext): string {
   return `import { zodResolver } from '@hookform/resolvers/zod'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
-import { signInWithPasswordSchema } from '@repo/identity/contracts'
+import { signInWithPasswordSchema } from '@repo/iam/contracts'
 import {
   Button,
   Card,
@@ -196,9 +196,9 @@ function renderAuthApiClient(): string {
   return `import { z } from 'zod'
 
 import {
-  registerIdentitySchema,
+  signUpSchema,
   signInWithPasswordSchema,
-} from '@repo/identity/contracts'
+} from '@repo/iam/contracts'
 
 const apiBaseUrl = z
   .string()
@@ -208,7 +208,7 @@ const apiBaseUrl = z
 /**
  * The sign-in calls, typed from the schemas the API validates against.
  *
- * The shapes are imported from \`@repo/identity/contracts\` rather than written
+ * The shapes are imported from \`@repo/iam/contracts\` rather than written
  * here: one definition, two consumers, so a field added to the form and to the
  * route cannot disagree. The generated \`~sdk\` covers the rest of the surface;
  * these three exist before it does, because signing in is what produces the
@@ -218,7 +218,7 @@ type SignInInput = z.infer<typeof signInWithPasswordSchema> & {
   tx: string
 }
 
-type SignUpInput = z.infer<typeof registerIdentitySchema> & {
+type SignUpInput = z.infer<typeof signUpSchema> & {
   tx: string
 }
 
@@ -414,7 +414,7 @@ apps/<product>  →  POST /api/v1/auth/token   →  httpOnly cookies
 \`\`\`
 
 The contracts for sign-in and sign-up come from
-\`@repo/identity/contracts\` — the same schemas the API validates against, so
+\`@repo/iam/contracts\` — the same schemas the API validates against, so
 the form and the route cannot disagree.
 `
       : `# @repo/${context.name}

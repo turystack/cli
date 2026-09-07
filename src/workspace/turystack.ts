@@ -53,7 +53,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/nestjs-context': {
     directory: 'nestjs-context',
-    version: '1.0.2',
+    version: '1.1.0',
   },
   '@turystack/nestjs-database': {
     directory: 'nestjs-database',

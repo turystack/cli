@@ -28,7 +28,7 @@ import {
   DATABASE_DEV,
   DATABASE_TURYSTACK,
   EXCEPTIONS_TURYSTACK,
-  IDENTITY_TURYSTACK,
+  IAM_TURYSTACK,
   OAUTH_CLIENTS_DEV,
   OAUTH_CLIENTS_PEER,
   ROOT_DEV,
@@ -41,7 +41,7 @@ import {
 import { generateApiFiles } from './templates/api.js'
 import { generateDatabaseFiles } from './templates/database.js'
 import { generateExceptionsFiles } from './templates/exceptions.js'
-import { generateIdentityFiles } from './templates/identity.js'
+import { generateIamFiles } from './templates/iam.js'
 import { generateOAuthClientsFiles } from './templates/oauth-clients.js'
 import { generateUiFiles } from './templates/ui.js'
 import { generateWebFiles } from './templates/web.js'
@@ -200,19 +200,20 @@ export async function runCreateWorkspace(
           }),
         ],
         [
-          'domains/identity',
-          generateIdentityFiles({
+          'domains/iam',
+          generateIamFiles({
             dependencies: {
               '@nestjs/common': '^11.0.0',
               '@repo/database': 'workspace:*',
               '@repo/exceptions': 'workspace:*',
+              uuidv7: '^1.2.1',
               zod: '^4.4.3',
-              ...turystack('domains/identity', IDENTITY_TURYSTACK),
+              ...turystack('domains/iam', IAM_TURYSTACK),
             },
             devDependencies: {
               ...BACKEND_PACKAGE_DEV,
               ...TEST_DEV,
-              ...turystack('domains/identity', [
+              ...turystack('domains/iam', [
                 '@turystack/backend-config',
               ]),
             },
@@ -225,7 +226,7 @@ export async function runCreateWorkspace(
             dependencies: {
               '@repo/database': 'workspace:*',
               '@repo/exceptions': 'workspace:*',
-              '@repo/identity': 'workspace:*',
+              '@repo/iam': 'workspace:*',
               '@repo/oauth-clients': 'workspace:*',
               ...API_DEPENDENCIES,
               ...turystack(`apps/${API_NAME}`, API_TURYSTACK),
@@ -246,7 +247,7 @@ export async function runCreateWorkspace(
             apiBaseUrl,
             audience: 'auth',
             dependencies: {
-              '@repo/identity': 'workspace:*',
+              '@repo/iam': 'workspace:*',
               '@repo/oauth-clients': 'workspace:*',
               '@repo/ui': 'workspace:*',
               ...WEB_DEPENDENCIES,
@@ -302,7 +303,7 @@ export async function runCreateWorkspace(
           [
             'packages/exceptions',
             'packages/database',
-            'domains/identity',
+            'domains/iam',
             `apps/${API_NAME}`,
           ],
         ],
@@ -335,7 +336,7 @@ export async function runCreateWorkspace(
       `Location   ${target}`,
       'API        apps/api · audience auth',
       'Sign-in    apps/auth',
-      'Domain     domains/identity',
+      'Domain     domains/iam',
       'Packages   exceptions · database · ui · oauth-clients',
       `Source     ${
         options.registry

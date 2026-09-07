@@ -184,7 +184,7 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table, tables) => [
+    (table) => [
       schema.uniqueIndex('user_email_key').on(table.email),
       // Partial, because most people give no phone and every null would
       // otherwise collide with every other null.
@@ -269,7 +269,7 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       updatedBy: schema.text(),
       deletedBy: schema.text(),
     },
-    (table, tables) => [
+    (table) => [
       // Global, deliberately: the organization is the top of the scope tree,
       // so there is nothing to scope its slug by.
       schema.uniqueIndex('organization_slug_key').on(table.slug),
@@ -453,7 +453,7 @@ export const databaseSchema = defineDatabaseSchema((schema) => ({
       createdAt: schema.timestamp({ withTimezone: true }).notNull().defaultNow(),
       updatedAt: schema.timestamp({ withTimezone: true }).notNull().defaultNow(),
     },
-    (table, tables) => [
+    (table) => [
       schema.uniqueIndex('permission_key').on(table.key),
     ],
   ),

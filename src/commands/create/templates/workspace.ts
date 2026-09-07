@@ -9,7 +9,7 @@ export const ROOT_PROJECTS = [
   './packages/exceptions/tsconfig.build.json',
   './packages/database/tsconfig.build.json',
   './packages/oauth-clients/tsconfig.build.json',
-  './domains/identity/tsconfig.build.json',
+  './domains/iam/tsconfig.build.json',
 ]
 
 export function generateWorkspaceFiles(context: {

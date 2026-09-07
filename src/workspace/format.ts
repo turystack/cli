@@ -89,6 +89,9 @@ export async function formatDirectory(
     'format',
     'check',
   ] as const) {
+    // `check --write` exits 1 when a finding it cannot fix remains, which is a
+    // report rather than a failure — and treating it as one used to abandon
+    // every subtree after the first, leaving them formatted by nothing.
     await runCommand(
       process.execPath,
       [
@@ -105,6 +108,11 @@ export async function formatDirectory(
       ],
       target,
       `Biome ${command}`,
+      {
+        allow: [
+          1,
+        ],
+      },
     )
   }
 }

@@ -22,9 +22,12 @@ export const DATABASE_TURYSTACK = [
   '@turystack/nestjs-database',
 ] as const
 
-export const IDENTITY_TURYSTACK = [
+export const IAM_TURYSTACK = [
   '@turystack/entity',
   '@turystack/fields',
+  // The clock is a declared dependency (`ARC-TOP-7`), and `ClockService` is
+  // where it is read: a `new Date()` in the domain is a gate finding.
+  '@turystack/nestjs-context',
   '@turystack/nestjs-database',
   '@turystack/nestjs-iam',
 ] as const
