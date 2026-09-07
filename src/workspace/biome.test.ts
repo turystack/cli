@@ -139,8 +139,9 @@ describe('the emitted import order', () => {
     }
 
     return JSON.parse(
-      JSON.stringify(config.assist.actions.source.organizeImports.options.groups)
-        .replaceAll('@repo/', '@acme/'),
+      JSON.stringify(
+        config.assist.actions.source.organizeImports.options.groups,
+      ).replaceAll('@repo/', '@acme/'),
     ) as unknown[]
   }
 
