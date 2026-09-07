@@ -44,7 +44,7 @@ import { generateExceptionsFiles } from './templates/exceptions.js'
 import { generateIamFiles } from './templates/iam.js'
 import { generateOAuthClientsFiles } from './templates/oauth-clients.js'
 import { generateUiFiles } from './templates/ui.js'
-import { generateWebFiles } from './templates/web.js'
+import { CALLBACK_PATH, generateWebFiles } from './templates/web.js'
 import { generateWorkspaceFiles } from './templates/workspace.js'
 import type { CreateWorkspaceOptions } from './types.js'
 
@@ -164,6 +164,10 @@ export async function runCreateWorkspace(
               ...turystack('.', ROOT_TURYSTACK),
             },
             iamSecret: randomBytes(32).toString('base64url'),
+            origins: PRODUCT_APPS.map((app) => ({
+              name: app.name,
+              url: `http://localhost:${app.port}`,
+            })),
             project: options.name,
           }),
         ],
@@ -207,6 +211,10 @@ export async function runCreateWorkspace(
         [
           'packages/oauth-clients',
           generateOAuthClientsFiles({
+            clients: PRODUCT_APPS.map((app) => ({
+              callbackPath: CALLBACK_PATH,
+              name: app.name,
+            })),
             dependencies: {},
             devDependencies: {
               ...OAUTH_CLIENTS_DEV,

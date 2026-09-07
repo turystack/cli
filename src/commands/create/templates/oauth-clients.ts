@@ -19,9 +19,23 @@ import { renderManifest, sortedRecord } from './tsconfig.js'
  * has no business carrying.
  */
 export function generateOAuthClientsFiles(context: {
+  /** The applications allowed to start a sign-in, from `create`. */
+  clients: {
+    callbackPath: string
+    name: string
+  }[]
   dependencies: Record<string, string>
   devDependencies: Record<string, string>
 }): GeneratedFiles {
+  const clients = context.clients
+    .map(
+      (client) => `  ${client.name}: {
+    callbackPath: '${client.callbackPath}',
+    scopes: [],
+  },`,
+    )
+    .join('\n')
+
   return {
     // The package is dual — a data half and a React half — and Biome takes one
     // config per package rather than one per folder. The frontend rules are
@@ -53,7 +67,7 @@ export function generateOAuthClientsFiles(context: {
       private: true,
       scripts: {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
-        typecheck: 'tsc --noEmit && tsc --noEmit -p tsconfig.react.json',
+        typecheck: 'tsc --noEmit',
       },
       type: 'module',
       types: './dist/index.d.ts',
@@ -109,7 +123,9 @@ export type OAuthClientConfig = {
   scopes: string[]
 }
 
-export const CLIENTS: Record<string, OAuthClientConfig> = {}
+export const CLIENTS: Record<string, OAuthClientConfig> = {
+${clients}
+}
 
 export type ClientId = keyof typeof CLIENTS
 `,

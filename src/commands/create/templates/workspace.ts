@@ -17,9 +17,20 @@ export function generateWorkspaceFiles(context: {
   authAppUrl: string
   devDependencies: Record<string, string>
   iamSecret: string
+  /** One per product application: where its browser is, and what the API trusts. */
+  origins: {
+    name: string
+    url: string
+  }[]
   project: string
 }): GeneratedFiles {
   const database = databaseName(context.project)
+  const origins = context.origins
+    .map(
+      (origin) =>
+        `${origin.name.replaceAll('-', '_').toUpperCase()}_ORIGIN=${origin.url}`,
+    )
+    .join('\n')
 
   return {
     '.env': `# -----------------------------------------------------------------------------
@@ -43,6 +54,10 @@ DATABASE_PORT=5432
 # -----------------------------------------------------------------------------
 IAM_SECRET=${context.iamSecret}
 AUTH_APP_URL=${context.authAppUrl}
+
+# Where each product application is served. The API refuses to hand a session
+# to an origin it was not told about, so an app missing here cannot sign in.
+${origins}
 
 # -----------------------------------------------------------------------------
 # Social sign-in — fill in the client ids the providers issued you
@@ -72,6 +87,8 @@ DATABASE_PORT=5432
 # -----------------------------------------------------------------------------
 IAM_SECRET=REPLACE
 AUTH_APP_URL=${context.authAppUrl}
+
+${origins}
 
 # -----------------------------------------------------------------------------
 # Social sign-in

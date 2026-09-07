@@ -61,7 +61,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/nestjs-iam': {
     directory: 'nestjs-iam',
-    version: '1.1.0',
+    version: '1.1.1',
   },
   '@turystack/nestjs-idempotency': {
     directory: 'nestjs-idempotency',

@@ -767,7 +767,16 @@ function HomePage() {
   files['src/api/profile.test.ts'] =
     `import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchProfile } from '@/api/profile'
+/**
+ * The base URL is read at module load, so every case imports the module fresh
+ * after stubbing the environment. Importing it once at the top would bind
+ * whatever the real \`.env\` says and make this file lie.
+ */
+async function loadClient() {
+  vi.resetModules()
+
+  return import('@/api/profile')
+}
 
 /**
  * The one call this application makes before it can render anything.
@@ -798,6 +807,8 @@ describe('fetchProfile', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
+    const { fetchProfile } = await loadClient()
+
     expect(await fetchProfile()).toEqual({
       user: {
         name: 'Ana Ribeiro',
@@ -817,6 +828,8 @@ describe('fetchProfile', () => {
         ok: false,
       }),
     )
+
+    const { fetchProfile } = await loadClient()
 
     await expect(fetchProfile()).rejects.toThrow('Could not read the profile.')
   })

@@ -84,18 +84,17 @@ function renderAppModule(context: ApiTemplateContext): string {
 
   return `import { Module } from '@nestjs/common'
 import { databaseRelations, databaseSchema } from '@repo/database'
-import {
-  IAM_PROVIDERS,
-  ResolveProfile,
-} from '@repo/iam'
+import { ResolveProfile } from '@repo/iam'
 import { oauthClients } from '@repo/oauth-clients'
 import { ConfigModule } from '@turystack/nestjs-config'
+import { ContextModule } from '@turystack/nestjs-context'
 import { DatabaseModule } from '@turystack/nestjs-database'
 import { IamModule } from '@turystack/nestjs-iam'
 import { OAuthModule } from '@turystack/nestjs-oauth'
 import { SocialAuthModule } from '@turystack/nestjs-social-auth'
 
 import { AuthController } from '@/controllers/auth/auth.controller.js'
+import { IamDomainModule } from '@/iam-domain.module.js'
 ${controllerImports ? `${controllerImports}\n` : ''}// turystack:audience-imports
 import { configSchema } from '@/config.schema.js'
 
@@ -105,6 +104,10 @@ ${controllers.map((controller) => `    ${controller},`).join('\n')}
     // turystack:audience-controllers
   ],
   imports: [
+    // Global: the correlation id, the acting principal and the clock are read
+    // by logging, auditing and every use case that reasons about an instant.
+    ContextModule.register(),
+    IamDomainModule,
     ConfigModule.register({
       // One .env, at the repository root: the services are shared, and a second
       // copy of DATABASE_URL beside this app is the drift nobody notices until
@@ -145,9 +148,6 @@ ${origins ? `${origins}\n` : ''}        // turystack:audience-origins
         clientId: config.get('GOOGLE_CLIENT_ID') ?? '',
       },
     })),
-  ],
-  providers: [
-    ...IAM_PROVIDERS,
   ],
 })
 export class AppModule {}
@@ -651,6 +651,28 @@ describe('configSchema', () => {
 `,
     'src/config.schema.ts': renderConfigSchema(context),
     'src/controllers/auth/auth.controller.ts': renderAuthController(),
+    'src/iam-domain.module.ts': `import { Global, Module } from '@nestjs/common'
+import { IAM_PROVIDERS } from '@repo/iam'
+
+/**
+ * The IAM domain, visible to every injector in the process.
+ *
+ * Global because \`IamModule\` builds the profile resolver in its own injector,
+ * which sees global providers and nothing else — a resolver that reaches a
+ * repository the application module owns cannot be constructed there, and the
+ * failure arrives at boot as an unresolved parameter index.
+ */
+@Global()
+@Module({
+  exports: [
+    ...IAM_PROVIDERS,
+  ],
+  providers: [
+    ...IAM_PROVIDERS,
+  ],
+})
+export class IamDomainModule {}
+`,
     'src/main.ts': renderMain(context),
     'src/seed.ts': `import { NestFactory } from '@nestjs/core'
 import { SeedIam } from '@repo/iam'
