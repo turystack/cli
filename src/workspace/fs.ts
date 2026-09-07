@@ -73,7 +73,10 @@ export function stripComments(source: string): string {
         line,
       ]
 
-      while (index < lines.length - 1 && !(lines[index] ?? '').trimEnd().endsWith('*/')) {
+      while (
+        index < lines.length - 1 &&
+        !(lines[index] ?? '').trimEnd().endsWith('*/')
+      ) {
         index += 1
         block.push(lines[index] ?? '')
       }
@@ -82,7 +85,10 @@ export function stripComments(source: string): string {
 
       let following = index
 
-      while (following < lines.length && (lines[following] ?? '').trim() === '') {
+      while (
+        following < lines.length &&
+        (lines[following] ?? '').trim() === ''
+      ) {
         following += 1
       }
 
