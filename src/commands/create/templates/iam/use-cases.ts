@@ -20,7 +20,7 @@ export function renderUseCases(scope: string): Record<string, string> {
   return {
     'src/use-cases/get-profile/get-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
-import { exceptions } from '${scope}/exceptions'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 
 import { MembershipRepository } from '@/entities/membership/index.js'
 import { OrganizationRepository } from '@/entities/organization/index.js'
@@ -49,7 +49,7 @@ export class GetProfile {
     })
 
     if (!user) {
-      throw new exceptions.iam.userNotFound({
+      throw new iamExceptions.userNotFound({
         userId: input.userId,
       })
     }
@@ -59,7 +59,7 @@ export class GetProfile {
     })
 
     if (!organization) {
-      throw new exceptions.iam.organizationNotFound({
+      throw new iamExceptions.organizationNotFound({
         organizationId: input.organizationId,
       })
     }
@@ -445,7 +445,7 @@ export const signInWithCodeSchema = z.object({
 })
 `,
     'src/use-cases/sign-in-with-code/sign-in-with-code.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { exceptions } from '${scope}/exceptions'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 
@@ -472,7 +472,7 @@ export class SignInWithCode {
     })
 
     if (!user) {
-      throw new exceptions.iam.invalidCode()
+      throw new iamExceptions.invalidCode()
     }
 
     const otp = await this.otps.findPending({
@@ -481,7 +481,7 @@ export class SignInWithCode {
     })
 
     if (!otp) {
-      throw new exceptions.iam.invalidCode()
+      throw new iamExceptions.invalidCode()
     }
 
     otp.checkIfUsable(now)
@@ -492,7 +492,7 @@ export class SignInWithCode {
         otpId: otp.otpId,
       })
 
-      throw new exceptions.iam.invalidCode()
+      throw new iamExceptions.invalidCode()
     }
 
     await this.otps.consume({
@@ -633,7 +633,7 @@ describe('SignInWithPassword', () => {
 })
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { exceptions } from '${scope}/exceptions'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 import { ClockService } from '@turystack/nestjs-context'
 
 import { User, UserRepository } from '@/entities/user/index.js'
@@ -654,13 +654,13 @@ export class SignInWithPassword {
     })
 
     if (!user) {
-      throw new exceptions.iam.invalidCredentials()
+      throw new iamExceptions.invalidCredentials()
     }
 
     user.checkIfCanSignInWithPassword()
 
     if (!(await user.verifyCredential(input.password))) {
-      throw new exceptions.iam.invalidCredentials()
+      throw new iamExceptions.invalidCredentials()
     }
 
     await this.users.update({
@@ -813,7 +813,7 @@ export const signUpSchema = z.object({
 `,
     'src/use-cases/sign-up/sign-up.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
-import { exceptions } from '${scope}/exceptions'
+import { iamExceptions } from '@/support/iam.exceptions.js'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
@@ -851,7 +851,7 @@ export class SignUp {
     })
 
     if (existing) {
-      throw new exceptions.iam.alreadyRegistered({
+      throw new iamExceptions.alreadyRegistered({
         email: input.email,
       })
     }
@@ -861,7 +861,7 @@ export class SignUp {
     })
 
     if (!founderRole) {
-      throw new exceptions.iam.roleNotFound({
+      throw new iamExceptions.roleNotFound({
         key: FOUNDER_ROLE_KEY,
       })
     }

@@ -69,7 +69,6 @@ export async function runAddDomain(options: AddDomainOptions): Promise<void> {
           dependencies: {
             // The catalogue is a workspace package, so the domain reaches it by
             // name rather than by a relative path out of its own folder.
-            [`${scope}/exceptions`]: 'workspace:*',
             zod: '^4.4.3',
             ...turystackSpecs(
               target,

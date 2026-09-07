@@ -16,10 +16,6 @@ export const ROOT_TURYSTACK = [
   '@turystack/proof-mode-gates',
 ] as const
 
-export const EXCEPTIONS_TURYSTACK = [
-  '@turystack/exceptions',
-] as const
-
 export const DATABASE_TURYSTACK = [
   '@turystack/exceptions',
   '@turystack/nestjs-database',
@@ -27,6 +23,7 @@ export const DATABASE_TURYSTACK = [
 
 export const IAM_TURYSTACK = [
   '@turystack/entity',
+  '@turystack/exceptions',
   '@turystack/fields',
   // The clock is a declared dependency (`ARC-TOP-7`), and `ClockService` is
   // where it is read: a `new Date()` in the domain is a gate finding.

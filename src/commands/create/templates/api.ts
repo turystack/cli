@@ -592,7 +592,7 @@ ${context.audiences.map((audience) => `| \`${audience}\` | \`/api/v1/${audience}
 
 This app holds delivery and composition. Schema, entity, repository and use case
 live in \`domains/\`, one package each; the error catalogue is
-\`${scope}/exceptions\`; the tables are \`${scope}/database\`; who may sign in is
+its own; the tables are \`${scope}/database\`; who may sign in is
 \`${scope}/oauth-clients\`, the same module the browser reads.
 
 \`src/controllers/auth/\` establishes *who* the person is and hands that to
@@ -711,7 +711,6 @@ await seed()
         ],
         extends: './tsconfig.json',
         references: [
-          '../../packages/exceptions/tsconfig.build.json',
           '../../packages/database/tsconfig.build.json',
           '../../packages/oauth-clients/tsconfig.build.json',
           '../../domains/iam/tsconfig.build.json',

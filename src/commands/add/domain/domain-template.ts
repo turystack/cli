@@ -1,5 +1,5 @@
 import type { GeneratedFiles } from '../../../workspace/fs.js'
-import { titleCase } from '../../../workspace/names.js'
+import { camelCase, pascalCase, titleCase } from '../../../workspace/names.js'
 import {
   renderPackageBuildTsconfig,
   renderPackageTsconfig,
@@ -28,6 +28,8 @@ export function generateDomainFiles(
 ): GeneratedFiles {
   const { name } = context.options
   const scope = context.scope
+  const camel = camelCase(name)
+  const pascal = pascalCase(name)
 
   return {
     'package.json': `${JSON.stringify(
@@ -87,11 +89,23 @@ use case from its barrel. Never reach past the barrel into another domain's
 repository — and never create a cycle: \`tsc -b\` refuses one, which is the
 point of each domain being its own package.
 `,
-    'src/index.ts': `export {}
+    'src/index.ts': `export type { ${pascal}ExceptionCode } from '@/support/${name}.exceptions.js'
+export { ${camel}Exceptions } from '@/support/${name}.exceptions.js'
 `,
-    'tsconfig.build.json': renderPackageBuildTsconfig([
-      '../../packages/exceptions/tsconfig.build.json',
-    ]),
+    'src/support/${name}.exceptions.ts': `import {
+  createExceptions,
+  type InferExceptionCodes,
+} from '@turystack/exceptions'
+
+export const ${camel}Exceptions = createExceptions((e) =>
+  e.module('${name}', {
+    notFound: [],
+  }),
+)
+
+export type ${pascal}ExceptionCode = InferExceptionCodes<typeof ${camel}Exceptions>
+`,
+    'tsconfig.build.json': renderPackageBuildTsconfig([]),
     'tsconfig.json': renderPackageTsconfig(),
     'vitest.config.ts': `import { backend } from '@turystack/backend-config/vitest'
 

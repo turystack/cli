@@ -10,7 +10,6 @@ import { renderManifest, sortedRecord } from './tsconfig.js'
 // turystack-proof:pattern-data — this file emits a repository as source text.
 
 export const ROOT_PROJECTS = [
-  './packages/exceptions/tsconfig.build.json',
   './packages/database/tsconfig.build.json',
   './packages/oauth-clients/tsconfig.build.json',
   './domains/iam/tsconfig.build.json',
@@ -167,7 +166,7 @@ volumes:
         // `tsc -b` first, in all three: a workspace package resolves through
         // its `dist`, and `tsc --noEmit` inside one package does not build the
         // packages it depends on. Without the build step a fresh clone fails
-        // on the repository's own `exceptions` package rather than on anything it wrote.
+        // on the codes the domain publishes rather than on anything it wrote.
         test: 'tsc -b && pnpm -r --if-present run test',
         'test:coverage': 'tsc -b && pnpm -r --if-present run test:coverage',
         typecheck: 'tsc -b && pnpm -r --if-present run typecheck',

@@ -183,120 +183,11 @@ export function oauthClients(
   })
 }
 `,
-    'src/react/auth-client.ts': `import { getClient } from '@/clients.js'
-
-import { createVerifier, deriveChallenge } from './pkce.js'
-import {
-  clearVerifier,
-  readVerifier,
-  rememberVerifier,
-  type Session,
-} from './session.js'
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL as string
-
-function endpoint(path: string): string {
-  return new URL(\`api/v1/auth/\${path}\`, apiBaseUrl).toString()
-}
-
-/** Sends the browser to the authorization server, which sends it to sign-in. */
-export async function beginSignIn(client: string): Promise<void> {
-  const config = getClient(client)
-
-  if (!config) {
-    throw new Error(\`Unknown OAuth client: \${client}\`)
-  }
-
-  const verifier = createVerifier()
-  const challenge = await deriveChallenge(verifier)
-
-  rememberVerifier(
-    verifier,
-    \`\${window.location.pathname}\${window.location.search}\`,
-  )
-
-  const url = new URL(endpoint('authorize'))
-  url.searchParams.set('client_id', client)
-  url.searchParams.set('code_challenge', challenge)
-  url.searchParams.set('code_challenge_method', 'S256')
-  url.searchParams.set(
-    'redirect_uri',
-    new URL(config.callbackPath, window.location.origin).toString(),
-  )
-
-  if (config.scopes.length > 0) {
-    url.searchParams.set('scope', config.scopes.join(' '))
-  }
-
-  window.location.assign(url.toString())
-}
-
-/** Exchanges the code the authorization server sent back. */
-export async function completeSignIn(
-  client: string,
-  code: string,
-): Promise<{
-  returnTo: string
-  session: Session
-}> {
-  const config = getClient(client)
-
-  if (!config) {
-    throw new Error(\`Unknown OAuth client: \${client}\`)
-  }
-
-  const { returnTo, verifier } = readVerifier()
-
-  if (!verifier) {
-    throw new Error('This sign-in did not start here. Try again.')
-  }
-
-  const response = await fetch(endpoint('token'), {
-    body: JSON.stringify({
-      client_id: client,
-      code,
-      code_verifier: verifier,
-      redirect_uri: new URL(
-        config.callbackPath,
-        window.location.origin,
-      ).toString(),
-    }),
-    credentials: 'include',
-    headers: {
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
-
-  if (!response.ok) {
-    throw new Error('Could not complete sign-in.')
-  }
-
-  clearVerifier()
-
-  return {
-    returnTo,
-    session: (await response.json()) as Session,
-  }
-}
-
-export async function refreshSession(): Promise<Session | null> {
-  const response = await fetch(endpoint('refresh'), {
-    credentials: 'include',
-    method: 'POST',
-  })
-
-  return response.ok ? ((await response.json()) as Session) : null
-}
-
-export async function signOut(): Promise<void> {
-  await fetch(endpoint('sign-out'), {
-    credentials: 'include',
-    method: 'POST',
-  })
-}
+    'src/react/index.tsx': `export { AuthProvider } from '@/react/provider/auth-provider.js'
+export { useSession } from '@/react/provider/session-context.js'
+export type { Session } from '@/react/session/session.js'
 `,
-    'src/react/auth-provider.tsx': `import { type ReactNode, useEffect, useState } from 'react'
+    'src/react/provider/auth-provider.tsx': `import { type ReactNode, useEffect, useState } from 'react'
 
 import { type ClientId, getClient } from '@/clients.js'
 
@@ -305,14 +196,14 @@ import {
   completeSignIn,
   refreshSession,
   signOut as requestSignOut,
-} from './auth-client.js'
-import { SessionContext } from './session-context.js'
+} from '@/react/session/auth-client.js'
+import { SessionContext } from '@/react/provider/session-context.js'
 import {
   clearSession,
   readSession,
   type Session,
   writeSession,
-} from './session.js'
+} from '@/react/session/session.js'
 
 const RENEW_MARGIN = 60_000
 
@@ -473,11 +364,148 @@ export function AuthProvider({
   )
 }
 `,
-    'src/react/index.tsx': `export { AuthProvider } from './auth-provider.js'
-export { useSession } from './session-context.js'
-export type { Session } from './session.js'
+    'src/react/provider/session-context.ts': `import { createContext, use } from 'react'
+
+import type { Session } from '@/react/session/session.js'
+
+export type SessionContextValue = {
+  session: Session
+  signOut: () => Promise<void>
+}
+
+export const SessionContext = createContext<SessionContextValue | null>(null)
+
+/**
+ * The session, inside a tree \`AuthProvider\` has already decided is signed in.
+ *
+ * It throws rather than returning null: below the provider the session always
+ * exists, and a nullable value here would push a check into every consumer for
+ * a state that cannot happen.
+ */
+export function useSession(): SessionContextValue {
+  const value = use(SessionContext)
+
+  if (!value) {
+    throw new Error('useSession must be used inside <AuthProvider>')
+  }
+
+  return value
+}
 `,
-    'src/react/pkce.ts': `const VERIFIER_BYTES = 32
+    'src/react/session/auth-client.ts': `import { getClient } from '@/clients.js'
+
+import { createVerifier, deriveChallenge } from '@/react/session/pkce.js'
+import {
+  clearVerifier,
+  readVerifier,
+  rememberVerifier,
+  type Session,
+} from '@/react/session/session.js'
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL as string
+
+function endpoint(path: string): string {
+  return new URL(\`api/v1/auth/\${path}\`, apiBaseUrl).toString()
+}
+
+/** Sends the browser to the authorization server, which sends it to sign-in. */
+export async function beginSignIn(client: string): Promise<void> {
+  const config = getClient(client)
+
+  if (!config) {
+    throw new Error(\`Unknown OAuth client: \${client}\`)
+  }
+
+  const verifier = createVerifier()
+  const challenge = await deriveChallenge(verifier)
+
+  rememberVerifier(
+    verifier,
+    \`\${window.location.pathname}\${window.location.search}\`,
+  )
+
+  const url = new URL(endpoint('authorize'))
+  url.searchParams.set('client_id', client)
+  url.searchParams.set('code_challenge', challenge)
+  url.searchParams.set('code_challenge_method', 'S256')
+  url.searchParams.set(
+    'redirect_uri',
+    new URL(config.callbackPath, window.location.origin).toString(),
+  )
+
+  if (config.scopes.length > 0) {
+    url.searchParams.set('scope', config.scopes.join(' '))
+  }
+
+  window.location.assign(url.toString())
+}
+
+/** Exchanges the code the authorization server sent back. */
+export async function completeSignIn(
+  client: string,
+  code: string,
+): Promise<{
+  returnTo: string
+  session: Session
+}> {
+  const config = getClient(client)
+
+  if (!config) {
+    throw new Error(\`Unknown OAuth client: \${client}\`)
+  }
+
+  const { returnTo, verifier } = readVerifier()
+
+  if (!verifier) {
+    throw new Error('This sign-in did not start here. Try again.')
+  }
+
+  const response = await fetch(endpoint('token'), {
+    body: JSON.stringify({
+      client_id: client,
+      code,
+      code_verifier: verifier,
+      redirect_uri: new URL(
+        config.callbackPath,
+        window.location.origin,
+      ).toString(),
+    }),
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  })
+
+  if (!response.ok) {
+    throw new Error('Could not complete sign-in.')
+  }
+
+  clearVerifier()
+
+  return {
+    returnTo,
+    session: (await response.json()) as Session,
+  }
+}
+
+export async function refreshSession(): Promise<Session | null> {
+  const response = await fetch(endpoint('refresh'), {
+    credentials: 'include',
+    method: 'POST',
+  })
+
+  return response.ok ? ((await response.json()) as Session) : null
+}
+
+export async function signOut(): Promise<void> {
+  await fetch(endpoint('sign-out'), {
+    credentials: 'include',
+    method: 'POST',
+  })
+}
+`,
+    'src/react/session/pkce.ts': `const VERIFIER_BYTES = 32
 
 function base64url(bytes: Uint8Array): string {
   let binary = ''
@@ -505,35 +533,7 @@ export async function deriveChallenge(verifier: string): Promise<string> {
   return base64url(new Uint8Array(digest))
 }
 `,
-    'src/react/session-context.ts': `import { createContext, use } from 'react'
-
-import type { Session } from './session.js'
-
-export type SessionContextValue = {
-  session: Session
-  signOut: () => Promise<void>
-}
-
-export const SessionContext = createContext<SessionContextValue | null>(null)
-
-/**
- * The session, inside a tree \`AuthProvider\` has already decided is signed in.
- *
- * It throws rather than returning null: below the provider the session always
- * exists, and a nullable value here would push a check into every consumer for
- * a state that cannot happen.
- */
-export function useSession(): SessionContextValue {
-  const value = use(SessionContext)
-
-  if (!value) {
-    throw new Error('useSession must be used inside <AuthProvider>')
-  }
-
-  return value
-}
-`,
-    'src/react/session.ts': `export type Session = {
+    'src/react/session/session.ts': `export type Session = {
   expiresAt: number
 }
 

@@ -247,6 +247,39 @@ export { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with
 export { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
 export { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
 `,
+    'src/support/iam.exceptions.ts': `import {
+  createExceptions,
+  type InferExceptionCodes,
+} from '@turystack/exceptions'
+
+export const iamExceptions = createExceptions((e) =>
+  e.module('iam', {
+    conflict: [
+      'already_registered',
+      'single_workspace_organization',
+      'workspace_already_exists',
+    ],
+    forbidden: [
+      'organization_suspended',
+      'membership_suspended',
+      'out_of_scope',
+      'backoffice_role_outside_platform',
+    ],
+    notFound: [
+      'organization_not_found',
+      'role_not_found',
+      'user_not_found',
+    ],
+    unauthorized: [
+      'invalid_credentials',
+      'invalid_code',
+      'invitation_not_acceptable',
+    ],
+  }),
+)
+
+export type IamExceptionCode = InferExceptionCodes<typeof iamExceptions>
+`,
     'src/support/iam.permissions.ts': `import type { Audience } from '@/entities/permission/index.js'
 import type { RoleSeed } from '@/entities/role/index.js'
 

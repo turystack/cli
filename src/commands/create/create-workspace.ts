@@ -31,7 +31,6 @@ import {
   DATABASE_DEPENDENCIES,
   DATABASE_DEV,
   DATABASE_TURYSTACK,
-  EXCEPTIONS_TURYSTACK,
   IAM_TURYSTACK,
   OAUTH_CLIENTS_DEV,
   OAUTH_CLIENTS_PEER,
@@ -44,7 +43,6 @@ import {
 } from './dependencies.js'
 import { generateApiFiles } from './templates/api.js'
 import { generateDatabaseFiles } from './templates/database.js'
-import { generateExceptionsFiles } from './templates/exceptions.js'
 import { generateIamFiles } from './templates/iam.js'
 import { generateOAuthClientsFiles } from './templates/oauth-clients.js'
 import { generateUiFiles } from './templates/ui.js'
@@ -177,22 +175,6 @@ export async function runCreateWorkspace(
           }),
         ],
         [
-          'packages/exceptions',
-          generateExceptionsFiles({
-            dependencies: turystack(
-              'packages/exceptions',
-              EXCEPTIONS_TURYSTACK,
-            ),
-            devDependencies: {
-              ...BACKEND_PACKAGE_DEV,
-              ...turystack('packages/exceptions', [
-                '@turystack/backend-config',
-              ]),
-            },
-            scope,
-          }),
-        ],
-        [
           'packages/database',
           generateDatabaseFiles({
             databaseName: databaseName(options.name),
@@ -240,7 +222,6 @@ export async function runCreateWorkspace(
             dependencies: {
               '@nestjs/common': '^11.0.0',
               [`${scope}/database`]: 'workspace:*',
-              [`${scope}/exceptions`]: 'workspace:*',
               uuidv7: '^1.2.1',
               zod: '^4.4.3',
               ...turystack('domains/iam', IAM_TURYSTACK),
@@ -261,7 +242,6 @@ export async function runCreateWorkspace(
             audiences: PRODUCT_APPS.map((app) => app.name),
             dependencies: {
               [`${scope}/database`]: 'workspace:*',
-              [`${scope}/exceptions`]: 'workspace:*',
               [`${scope}/iam`]: 'workspace:*',
               [`${scope}/oauth-clients`]: 'workspace:*',
               ...API_DEPENDENCIES,
@@ -371,7 +351,6 @@ export async function runCreateWorkspace(
         [
           'backend',
           [
-            'packages/exceptions',
             'packages/database',
             'domains/iam',
             `apps/${API_NAME}`,
@@ -408,7 +387,7 @@ export async function runCreateWorkspace(
       'API        apps/api · audience auth',
       'Sign-in    apps/auth',
       'Domain     domains/iam',
-      'Packages   exceptions · database · ui · oauth-clients',
+      'Packages   database · ui · oauth-clients',
       `Source     ${
         options.registry
           ? 'Registry versions'

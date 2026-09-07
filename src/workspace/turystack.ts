@@ -113,7 +113,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/proof-mode-gates': {
     directory: 'proof-mode-gates',
-    version: '1.1.1',
+    version: '2.0.0',
   },
   '@turystack/query-dsl': {
     directory: 'query-dsl',

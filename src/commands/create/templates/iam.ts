@@ -122,10 +122,12 @@ idempotent and runs on every deploy, and it reports what the table holds and the
 code does not.
 `,
     ...renderContracts(),
-    ...renderEntities(scope),
+    ...renderEntities(),
     ...renderRepositories(scope),
     ...renderUseCases(scope),
-    'src/index.ts': `export { IAM_PROVIDERS } from '@/support/iam.providers.js'
+    'src/index.ts': `export type { IamExceptionCode } from '@/support/iam.exceptions.js'
+export { iamExceptions } from '@/support/iam.exceptions.js'
+export { IAM_PROVIDERS } from '@/support/iam.providers.js'
 
 export { GetProfile } from '@/use-cases/get-profile/index.js'
 export type { GetProfileInput, Profile } from '@/use-cases/get-profile/index.js'
@@ -188,7 +190,6 @@ export const IAM_PROVIDERS = [
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig([
       '../../packages/database/tsconfig.build.json',
-      '../../packages/exceptions/tsconfig.build.json',
     ]),
     'tsconfig.json': renderPackageTsconfig(),
     'vitest.config.ts': `import path from 'node:path'

@@ -8,7 +8,7 @@
  * single owner: hashing a password belongs to the person, slugging a name to
  * the organization, generating a code to the one-time code.
  */
-export function renderEntities(scope: string): Record<string, string> {
+export function renderEntities(): Record<string, string> {
   return {
     'src/entities/membership/index.ts': `export { Membership } from '@/entities/membership/membership.entity.js'
 export { mockMembership } from '@/entities/membership/membership.mock.js'
@@ -16,7 +16,7 @@ export { MembershipRepository } from '@/entities/membership/membership.repositor
 export { membershipSchema, membershipStatusSchema } from '@/entities/membership/membership.schema.js'
 export type { MembershipStatus } from '@/entities/membership/membership.types.js'
 `,
-    'src/entities/membership/membership.entity.ts': `import { exceptions } from '${scope}/exceptions'
+    'src/entities/membership/membership.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
 import { Entity } from '@turystack/entity'
 
 import type { z } from 'zod'
@@ -54,13 +54,13 @@ export class Membership {
 
   checkIfActive(): void {
     if (!this.isActive()) {
-      throw new exceptions.iam.membershipSuspended()
+      throw new iamExceptions.membershipSuspended()
     }
   }
 
   checkOrganization(organizationId: string): void {
     if (this.organizationId !== organizationId) {
-      throw new exceptions.iam.outOfScope()
+      throw new iamExceptions.outOfScope()
     }
   }
 }
@@ -94,7 +94,7 @@ export { organizationKindSchema, organizationSchema, organizationStatusSchema, w
 export { slugify } from '@/entities/organization/organization.slug.js'
 export type { OrganizationKind, OrganizationStatus, WorkspaceMode } from '@/entities/organization/organization.types.js'
 `,
-    'src/entities/organization/organization.entity.ts': `import { exceptions } from '${scope}/exceptions'
+    'src/entities/organization/organization.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
 import { Entity } from '@turystack/entity'
 
 import type { z } from 'zod'
@@ -136,13 +136,13 @@ export class Organization {
 
   checkIfActive(): void {
     if (!this.isActive()) {
-      throw new exceptions.iam.organizationSuspended()
+      throw new iamExceptions.organizationSuspended()
     }
   }
 
   checkIfCanAddWorkspace(): void {
     if (!this.allowsManyWorkspaces()) {
-      throw new exceptions.iam.singleWorkspaceOrganization()
+      throw new iamExceptions.singleWorkspaceOrganization()
     }
   }
 }
@@ -247,7 +247,7 @@ export function verifyCode(code: string, stored: string): Promise<boolean> {
   return verifyPassword(code, stored)
 }
 `,
-    'src/entities/otp/otp.entity.ts': `import { exceptions } from '${scope}/exceptions'
+    'src/entities/otp/otp.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
 import { Entity } from '@turystack/entity'
 
 import type { z } from 'zod'
@@ -299,7 +299,7 @@ export class Otp {
 
   checkIfUsable(now: Date): void {
     if (!this.isUsable(now)) {
-      throw new exceptions.iam.invalidCode()
+      throw new iamExceptions.invalidCode()
     }
   }
 
@@ -345,7 +345,7 @@ export { UserRepository } from '@/entities/user/user.repository.js'
 export { socialProfileSchema, socialProviderSchema, userSchema } from '@/entities/user/user.schema.js'
 export type { SocialProfile, SocialProvider } from '@/entities/user/user.types.js'
 `,
-    'src/entities/user/user.entity.ts': `import { exceptions } from '${scope}/exceptions'
+    'src/entities/user/user.entity.ts': `import { iamExceptions } from '@/support/iam.exceptions.js'
 import { Entity } from '@turystack/entity'
 
 import type { z } from 'zod'
@@ -394,7 +394,7 @@ export class User {
 
   checkIfCanSignInWithPassword(): void {
     if (!this.hasPassword()) {
-      throw new exceptions.iam.invalidCredentials()
+      throw new iamExceptions.invalidCredentials()
     }
   }
 
