@@ -34,7 +34,7 @@ describe('registerProject', () => {
       files: [],
       references: [
         {
-          path: './packages/database/tsconfig.build.json',
+          path: './libs/database/tsconfig.build.json',
         },
       ],
     })
@@ -78,7 +78,7 @@ describe('registerProject', () => {
     await registerProject(root, './apps/api/tsconfig.build.json')
 
     expect((await solution()).references).toContainEqual({
-      path: './packages/database/tsconfig.build.json',
+      path: './libs/database/tsconfig.build.json',
     })
   })
 })

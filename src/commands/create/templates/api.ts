@@ -711,8 +711,8 @@ await seed()
         ],
         extends: './tsconfig.json',
         references: [
-          '../../packages/database/tsconfig.build.json',
-          '../../packages/oauth-clients/tsconfig.build.json',
+          '../../libs/database/tsconfig.build.json',
+          '../../libs/oauth-clients/tsconfig.build.json',
           '../../domains/iam/tsconfig.build.json',
         ].map((path) => ({
           path,

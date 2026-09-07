@@ -28,7 +28,7 @@ const INSTALLED_CONFIG: Record<ConfigKind, string> = {
  *
  * `undefined` means "let Biome find it", and that is the answer whenever the
  * workspace has its dependencies: the repository's own configs sit at the right
- * depth, so `packages/exceptions` is formatted by the root config and
+ * depth, so `libs/exceptions` is formatted by the root config and
  * `apps/auth` by its own — with the includes, assists and plugins the project
  * will actually be checked against.
  *

@@ -19,15 +19,15 @@ export type ClientId = keyof typeof CLIENTS
 describe('registerOAuthClient', () => {
   let root: string
   const registry = () =>
-    readFile(resolve(root, 'packages/oauth-clients/src/clients.ts'), 'utf8')
+    readFile(resolve(root, 'libs/oauth-clients/src/clients.ts'), 'utf8')
 
   beforeEach(async () => {
     root = await mkdtemp(resolve(tmpdir(), 'turystack-clients-'))
-    await mkdir(resolve(root, 'packages/oauth-clients/src'), {
+    await mkdir(resolve(root, 'libs/oauth-clients/src'), {
       recursive: true,
     })
     await writeFile(
-      resolve(root, 'packages/oauth-clients/src/clients.ts'),
+      resolve(root, 'libs/oauth-clients/src/clients.ts'),
       EMPTY_REGISTRY,
       'utf8',
     )
@@ -86,7 +86,7 @@ describe('registerOAuthClient', () => {
 
   it('refuses rather than guessing when the registry is unrecognisable', async () => {
     await writeFile(
-      resolve(root, 'packages/oauth-clients/src/clients.ts'),
+      resolve(root, 'libs/oauth-clients/src/clients.ts'),
       'export const SOMETHING_ELSE = {}\n',
       'utf8',
     )

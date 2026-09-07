@@ -175,18 +175,18 @@ export async function runCreateWorkspace(
           }),
         ],
         [
-          'packages/database',
+          'libs/database',
           generateDatabaseFiles({
             databaseName: databaseName(options.name),
             dependencies: {
               ...DATABASE_DEPENDENCIES,
               zod: '^4.4.3',
-              ...turystack('packages/database', DATABASE_TURYSTACK),
+              ...turystack('libs/database', DATABASE_TURYSTACK),
             },
             devDependencies: {
               ...BACKEND_PACKAGE_DEV,
               ...DATABASE_DEV,
-              ...turystack('packages/database', [
+              ...turystack('libs/database', [
                 '@turystack/backend-config',
               ]),
             },
@@ -194,11 +194,11 @@ export async function runCreateWorkspace(
           }),
         ],
         [
-          'packages/ui',
+          'libs/ui',
           generateUiFiles(options.name),
         ],
         [
-          'packages/oauth-clients',
+          'libs/oauth-clients',
           generateOAuthClientsFiles({
             clients: PRODUCT_APPS.map((app) => ({
               callbackPath: CALLBACK_PATH,
@@ -208,7 +208,7 @@ export async function runCreateWorkspace(
             devDependencies: {
               ...OAUTH_CLIENTS_DEV,
               ...OAUTH_CLIENTS_PEER,
-              ...turystack('packages/oauth-clients', [
+              ...turystack('libs/oauth-clients', [
                 '@turystack/backend-config',
                 '@turystack/frontend-config',
               ]),
@@ -351,7 +351,7 @@ export async function runCreateWorkspace(
         [
           'backend',
           [
-            'packages/database',
+            'libs/database',
             'domains/iam',
             `apps/${API_NAME}`,
           ],
@@ -359,7 +359,7 @@ export async function runCreateWorkspace(
         [
           'frontend',
           [
-            'packages/oauth-clients',
+            'libs/oauth-clients',
             `apps/${AUTH_APP_NAME}`,
             ...PRODUCT_APPS.map((app) => `apps/${app.name}`),
           ],

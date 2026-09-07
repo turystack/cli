@@ -23,7 +23,7 @@ function render(title: string, lines: string[]): string {
  * sections to it.
  *
  * One file, because the values are shared: `docker-compose.yml` at the root
- * owns the services, `packages/database` needs `DATABASE_URL` for drizzle-kit,
+ * owns the services, `libs/database` needs `DATABASE_URL` for drizzle-kit,
  * and `apps/api` needs the same string. Two files holding one connection string
  * is the drift bug that shows up as "it works in the app but not in migrations".
  *

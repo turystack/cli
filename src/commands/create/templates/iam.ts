@@ -189,7 +189,7 @@ export const IAM_PROVIDERS = [
 ]
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig([
-      '../../packages/database/tsconfig.build.json',
+      '../../libs/database/tsconfig.build.json',
     ]),
     'tsconfig.json': renderPackageTsconfig(),
     'vitest.config.ts': `import path from 'node:path'

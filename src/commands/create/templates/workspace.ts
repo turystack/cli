@@ -10,8 +10,8 @@ import { renderManifest, sortedRecord } from './tsconfig.js'
 // turystack-proof:pattern-data — this file emits a repository as source text.
 
 export const ROOT_PROJECTS = [
-  './packages/database/tsconfig.build.json',
-  './packages/oauth-clients/tsconfig.build.json',
+  './libs/database/tsconfig.build.json',
+  './libs/oauth-clients/tsconfig.build.json',
   './domains/iam/tsconfig.build.json',
 ]
 
@@ -150,12 +150,12 @@ volumes:
         build: 'tsc -b && pnpm -r --if-present run build',
         check: 'biome check .',
         'check:fix': 'biome check --write .',
-        'db:generate': 'pnpm --filter ./packages/database db:generate',
-        'db:migrate': 'pnpm --filter ./packages/database db:migrate',
+        'db:generate': 'pnpm --filter ./libs/database db:generate',
+        'db:migrate': 'pnpm --filter ./libs/database db:migrate',
         // The catalogue in the source, written into the database. Runs after
         // the migration and before the first sign-up, which needs `OWNER`.
         'db:seed': 'pnpm --filter ./apps/api db:seed',
-        'db:studio': 'pnpm --filter ./packages/database db:studio',
+        'db:studio': 'pnpm --filter ./libs/database db:studio',
         dev: 'pnpm -r --parallel --if-present run dev',
         'docker:down': 'docker compose down',
         'docker:up': 'docker compose up -d',
@@ -177,7 +177,7 @@ volumes:
     'pnpm-workspace.yaml': `packages:
   - apps/*
   - domains/*
-  - packages/*
+  - libs/*
 `,
     'README.md': `# ${context.project}
 
@@ -189,7 +189,7 @@ first run.
 \`\`\`text
 apps/         delivery: the API, the sign-in app, one app per audience
 domains/      one package per business domain — it exports the use cases
-packages/     shared: backend, frontend, or both
+libs/         shared: backend, frontend, or both
 \`\`\`
 
 Every domain is its own package, so a dependency between two domains is a line
@@ -230,7 +230,7 @@ No token ever reaches JavaScript. The \`expiresAt\` hint is what lets a reload
 decide, synchronously, whether to render the protected route — so a protected
 screen never flashes a login form.
 
-Which applications may sign a person in is \`packages/oauth-clients\`, read by
+Which applications may sign a person in is \`libs/oauth-clients\`, read by
 the browser **and** by the API. One list, so a redirect target cannot be
 registered on one side and missing on the other.
 
@@ -248,7 +248,7 @@ registered on one side and missing on the other.
 
 ## Theme
 
-\`packages/ui/theme.css\` is the design applied over
+\`libs/ui/theme.css\` is the design applied over
 \`@turystack/react-web\` and \`@turystack/react-mobile\`. One file for the whole
 repository, imported by every app from day one. It starts empty — the UI/UX
 bootstrap fills it.

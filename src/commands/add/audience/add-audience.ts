@@ -261,7 +261,7 @@ export async function runAddAudience(
     [
       `Surface    /api/v1/${options.name}  ·  its own OpenAPI document`,
       `App        ${appDirectory}  ·  ${scope}/${options.name}`,
-      `Client     registered in packages/oauth-clients`,
+      `Client     registered in libs/oauth-clients`,
       `Origin     ${origin}  ·  ${originEnvName(options.name)} in .env`,
     ].join('\n'),
     'Audience created',

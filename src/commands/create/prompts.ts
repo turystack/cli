@@ -85,7 +85,7 @@ export async function completeCreateOptions(
     [
       `Name       ${name}`,
       `Location   ${cwd}/${name}`,
-      'Shape      apps/ · domains/ · packages/',
+      'Shape      apps/ · domains/ · libs/',
       `Skills     ${skills ? 'installed' : 'skipped'}`,
       `Install    ${parsed.install ? 'pnpm install' : 'skipped'}`,
     ].join('\n'),

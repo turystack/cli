@@ -59,7 +59,7 @@ What \`create\` produces:
   apps/api          the API, with the auth audience and the authorization server
   apps/auth         the sign-in application — every auth screen in the repository
   domains/iam       the person, the organizations they act for, and their roles
-  packages/         exceptions · database · ui · oauth-clients
+  libs/         database · ui · oauth-clients
 
 Every audience is one API surface, one OpenAPI document and one application.
 A product app holds no auth code: <AuthProvider> is the whole integration.

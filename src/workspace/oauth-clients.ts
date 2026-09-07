@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-const REGISTRY = 'packages/oauth-clients/src/clients.ts'
+const REGISTRY = 'libs/oauth-clients/src/clients.ts'
 
 const EMPTY = 'export const CLIENTS: Record<string, OAuthClientConfig> = {}'
 
