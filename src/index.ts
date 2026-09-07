@@ -68,7 +68,7 @@ Audience options:
 Skills options:
   --claude                 Install into .claude/skills
   --codex                  Install into .codex/skills
-  --skills <harness,proof-mode,architecture,backend,frontend,frontend-primitives,spec,uiux>
+  --skills <harness,proof-mode,architecture,modeling,backend,frontend,frontend-primitives,spec,uiux>
   --project <name>         Names the project's own skills (<name>-spec, <name>-uiux)
 
 Shared options:

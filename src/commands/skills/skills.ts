@@ -54,6 +54,12 @@ const SKILL_PACKAGE: Record<SkillId, SkillPackage> = {
     name: 'turystack-backend-pattern',
     packageName: '@turystack/backend-pattern',
   },
+  modeling: {
+    directory: 'modeling-skill',
+    kind: 'law',
+    name: 'turystack-modeling',
+    packageName: '@turystack/modeling',
+  },
   harness: {
     directory: 'harness-skill',
     kind: 'law',

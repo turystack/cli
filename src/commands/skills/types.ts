@@ -3,6 +3,7 @@ export type AgentTarget = 'claude' | 'codex'
 export type SkillId =
   | 'architecture'
   | 'backend'
+  | 'modeling'
   | 'harness'
   | 'proof-mode'
   | 'frontend'

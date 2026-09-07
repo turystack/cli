@@ -4,6 +4,7 @@ const SKILL_IDS: SkillId[] = [
   'harness',
   'proof-mode',
   'architecture',
+  'modeling',
   'backend',
   'frontend',
   'frontend-primitives',

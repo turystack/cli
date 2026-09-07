@@ -16,6 +16,7 @@ const ALL_SKILLS: SkillId[] = [
   'harness',
   'proof-mode',
   'architecture',
+  'modeling',
   'backend',
   'frontend',
   'frontend-primitives',
@@ -81,6 +82,11 @@ export async function completeSkillsOptions(
             hint: 'the law that survives a change of stack — read first',
             label: 'Architecture constitution',
             value: 'architecture',
+          },
+          {
+            hint: 'what becomes a table, how tables relate, tenancy — and the IAM model',
+            label: 'Modeling',
+            value: 'modeling',
           },
           {
             hint: 'layers, use-cases, adapters, events, security',
