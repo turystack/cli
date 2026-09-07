@@ -4,7 +4,7 @@
     "declarationMap": true,
     "forceConsistentCasingInFileNames": true,
     "lib": [
-      "ES2023"
+      "es2023"
     ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -12,7 +12,7 @@
     "rootDir": "./src",
     "sourceMap": true,
     "strict": true,
-    "target": "ES2023",
+    "target": "es2023",
     "types": [
       "node"
     ]

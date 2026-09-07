@@ -58,7 +58,7 @@ describe('parseSkillsArgs', () => {
         'mobile',
       ]),
     ).toThrow(
-      '--skills must be architecture, backend, frontend, frontend-primitives',
+      '--skills must be harness, proof-mode, architecture, backend, frontend, frontend-primitives, spec, uiux',
     )
   })
 

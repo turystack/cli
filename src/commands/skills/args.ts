@@ -1,10 +1,14 @@
 import type { AgentTarget, ParsedSkillsCliOptions, SkillId } from './types.js'
 
 const SKILL_IDS: SkillId[] = [
+  'harness',
+  'proof-mode',
   'architecture',
   'backend',
   'frontend',
   'frontend-primitives',
+  'spec',
+  'uiux',
 ]
 
 function readValue(
@@ -117,6 +121,15 @@ export function parseSkillsArgs(args: string[]): ParsedSkillsCliOptions {
     if (argument === '--local-root' || argument.startsWith('--local-root=')) {
       const [value, nextIndex] = readValue(args, index, '--local-root')
       options.localRoot = value
+      index = nextIndex
+      continue
+    }
+
+    // Names the project's own skills (`<project>-spec`, `<project>-uiux`).
+    // Defaults to the consuming package's name.
+    if (argument === '--project' || argument.startsWith('--project=')) {
+      const [value, nextIndex] = readValue(args, index, '--project')
+      options.project = value
       index = nextIndex
       continue
     }

@@ -13,10 +13,14 @@ const ALL_AGENTS: AgentTarget[] = [
 ]
 
 const ALL_SKILLS: SkillId[] = [
+  'harness',
+  'proof-mode',
   'architecture',
   'backend',
   'frontend',
   'frontend-primitives',
+  'spec',
+  'uiux',
 ]
 
 export class SkillsPromptCancelledError extends Error {
@@ -43,6 +47,7 @@ export async function completeSkillsOptions(
     agents: parsed.agents ?? [],
     cwd,
     localRoot: parsed.localRoot,
+    project: parsed.project,
     skills: parsed.skills ?? [],
   }
 
@@ -63,6 +68,16 @@ export async function completeSkillsOptions(
         message: 'Which skills should be installed?',
         options: [
           {
+            hint: 'the entry point: bootstrap the project from its design, then implement, audit or hunt',
+            label: 'Project harness',
+            value: 'harness',
+          },
+          {
+            hint: 'per task: context, gates and the delivery report',
+            label: 'Delivery harness',
+            value: 'proof-mode',
+          },
+          {
             hint: 'the law that survives a change of stack — read first',
             label: 'Architecture constitution',
             value: 'architecture',
@@ -81,6 +96,16 @@ export async function completeSkillsOptions(
             hint: 'how to write each UI primitive component',
             label: 'Frontend primitives pattern',
             value: 'frontend-primitives',
+          },
+          {
+            hint: "materialized as <project>-spec — what this project does; yours to fill",
+            label: 'Project spec (template)',
+            value: 'spec',
+          },
+          {
+            hint: "materialized as <project>-uiux — tokens, copy and designs; yours to fill",
+            label: 'Project UI/UX (template)',
+            value: 'uiux',
           },
         ],
       }),

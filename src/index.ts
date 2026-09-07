@@ -1,21 +1,28 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'node:module'
 import process from 'node:process'
 
 import { log } from '@clack/prompts'
 
 import {
-  completeApiOptions,
-  PromptCancelledError,
-  parseArgs,
-  runCreateApi,
-} from './commands/create/api/index.js'
+  AddAudiencePromptCancelledError,
+  completeAddAudienceOptions,
+  parseAddAudienceArgs,
+  runAddAudience,
+} from './commands/add/audience/index.js'
 import {
-  completeWebOptions,
-  parseWebArgs,
-  runCreateWeb,
-  WebPromptCancelledError,
-} from './commands/create/web/index.js'
+  AddDomainPromptCancelledError,
+  completeAddDomainOptions,
+  parseAddDomainArgs,
+  runAddDomain,
+} from './commands/add/domain/index.js'
+import {
+  completeCreateOptions,
+  CreatePromptCancelledError,
+  parseCreateArgs,
+  runCreateWorkspace,
+} from './commands/create/index.js'
 import {
   completeSkillsOptions,
   parseSkillsArgs,
@@ -23,38 +30,57 @@ import {
   SkillsPromptCancelledError,
 } from './commands/skills/index.js'
 
-const VERSION = '0.0.1'
+/**
+ * Read from the manifest rather than written here.
+ *
+ * A hand-kept copy answers `--version` with whatever it said when someone last
+ * remembered it — this one said `0.0.1` while the package was on its second
+ * major, which is the kind of wrong that only shows up in a bug report.
+ */
+const VERSION = (
+  createRequire(import.meta.url)('../package.json') as {
+    version: string
+  }
+).version
 
 const HELP = `@turystack/cli
 
+Turystack builds monorepos, and only monorepos.
+
 Usage:
-  turystack create api [name] [options]
-  turystack create web [name] [options]
+  turystack create <name> [options]        a repository that already signs people in
+  turystack add audience <name> [options]  an API surface and the app that consumes it
+  turystack add domain <name> [options]    a domain package — @repo/<name>
   turystack skills [options]
+
+What \`create\` produces:
+  apps/api          the API, with the auth audience and the authorization server
+  apps/auth         the sign-in application — every auth screen in the repository
+  domains/identity  the person, and how they prove it
+  packages/         exceptions · database · ui · oauth-clients
+
+Every audience is one API surface, one OpenAPI document and one application.
+A product app holds no auth code: <AuthProvider> is the whole integration.
+
+Audience options:
+  --port <number>          where the app runs in development; becomes its origin
 
 Skills options:
   --claude                 Install into .claude/skills
   --codex                  Install into .codex/skills
-  --skills <backend,frontend,frontend-primitives>
-
-API options:
-  --format <single|multi-audience>
-  --audiences <admin,app>
-  --modules <database,logger,...>
-
-Web options:
-  --audience <name>        Consume a specific multi-audience API surface
-  --openapi-url <url>      OpenAPI document used by Kubb
-  --api-base-url <url>     Runtime API base URL
+  --skills <harness,proof-mode,architecture,backend,frontend,frontend-primitives,spec,uiux>
+  --project <name>         Names the project's own skills (<name>-spec, <name>-uiux)
 
 Shared options:
-  --package-manager <pnpm|npm|yarn|bun>
-  --local-root <path>       Turystack source root used by local file links
-  --registry                Use published package versions instead of local links
+  --local-root <path>      Turystack source root used by local file links
+  --registry               Use published package versions instead of local links
   --skip-install
-  --yes                     Use defaults and disable prompts
+  --yes                    Use defaults and disable prompts
   --help
   --version
+
+pnpm only: the workspace file is what the law detects a Turystack repository by,
+and four package managers would mean four untested layouts.
 `
 
 async function main(): Promise<void> {
@@ -62,70 +88,82 @@ async function main(): Promise<void> {
 
   if (args.includes('--version')) {
     process.stdout.write(`${VERSION}\n`)
+
     return
   }
 
   if (args.includes('--help') || args.length === 0) {
     process.stdout.write(HELP)
+
     return
   }
 
-  const command = args[0]
-  const createType = args[1]
+  const [
+    command,
+    subcommand,
+  ] = args
 
   if (command === 'skills') {
     const parsed = parseSkillsArgs(args)
-    const answers = await completeSkillsOptions(parsed, process.cwd())
 
-    await runSkills(answers)
+    await runSkills(await completeSkillsOptions(parsed, process.cwd()))
+
     return
   }
 
-  if (command !== 'create') {
-    throw new Error(
-      'Available commands: turystack create api, create web, skills',
-    )
-  }
+  if (command === 'create') {
+    const parsed = parseCreateArgs(args)
+    const answers = await completeCreateOptions(parsed, process.cwd())
 
-  if (createType === 'api') {
-    const parsed = parseArgs(args)
-    const answers = await completeApiOptions(parsed)
-
-    await runCreateApi({
+    await runCreateWorkspace({
       ...answers,
       cwd: process.cwd(),
-      localRoot: parsed.localRoot,
-      registry: parsed.registry,
     })
+
     return
   }
 
-  if (createType === 'web') {
-    const parsed = parseWebArgs(args)
-    const answers = await completeWebOptions(parsed)
+  if (command === 'add') {
+    if (subcommand === 'audience') {
+      const parsed = parseAddAudienceArgs(args)
 
-    await runCreateWeb({
-      ...answers,
-      cwd: process.cwd(),
-      localRoot: parsed.localRoot,
-      registry: parsed.registry,
-    })
-    return
+      await runAddAudience({
+        ...(await completeAddAudienceOptions(parsed)),
+        cwd: process.cwd(),
+      })
+
+      return
+    }
+
+    if (subcommand === 'domain') {
+      const parsed = parseAddDomainArgs(args)
+
+      await runAddDomain({
+        ...(await completeAddDomainOptions(parsed)),
+        cwd: process.cwd(),
+      })
+
+      return
+    }
+
+    throw new Error('Available: turystack add audience, add domain')
   }
 
-  throw new Error('Available create targets: api, web')
+  throw new Error('Available commands: turystack create, add, skills')
 }
 
 main().catch((error: unknown) => {
   if (
-    error instanceof PromptCancelledError ||
-    error instanceof WebPromptCancelledError ||
+    error instanceof CreatePromptCancelledError ||
+    error instanceof AddAudiencePromptCancelledError ||
+    error instanceof AddDomainPromptCancelledError ||
     error instanceof SkillsPromptCancelledError
   ) {
     return
   }
 
   const message = error instanceof Error ? error.message : String(error)
+
   log.error(message)
   process.exitCode = 1
 })

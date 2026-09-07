@@ -1,122 +1,108 @@
 # @turystack/cli
 
-Local-first scaffolding for Turystack applications. The available generators
-create standalone NestJS APIs and React web applications.
+Local-first scaffolding for Turystack products. It creates monorepos, and only
+monorepos: a product with one API and a product with six apps have the same
+tree, because a domain is a package either way.
 
-## Installation
+## Quick start
 
 ```bash
-npx @turystack/cli create api my-api
+npx @turystack/cli create acme
+cd acme
+pnpm install
+pnpm docker:up
+pnpm db:generate && pnpm db:migrate
+pnpm dev
 ```
 
-No install step: the CLI runs straight from the registry. The sections
-below cover running it from a local checkout and the non-interactive flags.
+That repository already signs people in. The API comes up on `:3000` and the
+sign-in application on `:3100`.
 
-## Use from the Turystack source repository
+## What `create` produces
+
+```text
+apps/api          the API, its auth audience, and the authorization server
+apps/auth         the sign-in application — every auth screen in the repository
+domains/identity  the person, and how they prove it
+packages/
+├── exceptions    @repo/exceptions — the product's one error catalogue
+├── database      @repo/database — schema, relations, migrations
+├── ui            @repo/ui — the design, as one stylesheet
+└── oauth-clients @repo/oauth-clients — who may sign a person in
+```
+
+Nothing here is a placeholder waiting to be replaced. `domains/identity` stores
+real people, hashes real passwords and links real provider accounts; the auth
+routes complete a real Authorization Code + PKCE flow.
+
+## Growing the repository
 
 ```bash
+turystack add audience admin    # an API surface and the app that consumes it
+turystack add domain order      # domains/order — @repo/order
+turystack skills                # the Turystack skills, into .claude/skills
+```
+
+`add audience` is one command because an audience and an application are one
+decision. It writes `/api/v1/admin`, creates `apps/admin`, registers the OAuth
+client in `packages/oauth-clients`, adds `ADMIN_ORIGIN` to the root `.env`, and
+wires the controller, the origin and the OpenAPI project into the API.
+
+The application it creates contains **no authentication code**. One line in
+`src/routes/__root.tsx` is the whole integration:
+
+```tsx
+<AuthProvider client="admin">
+```
+
+## Sources: local or published
+
+The default writes Turystack dependencies as local `file:` specs, which keeps a
+generated repository connected to a checkout while its package manager still
+resolves peer dependencies in the generated app's own context.
+
+```bash
+# from a Turystack checkout
 pnpm --dir cli build
-node cli/dist/index.js create api my-api --local-root .
-node cli/dist/index.js create web my-web --local-root .
+node cli/dist/index.js create acme --local-root .
+
+# published versions instead
+node cli/dist/index.js create acme --registry
 ```
 
-The API flow builds multi-audience APIs one audience at a time, shows
-the current audience list, provides visual selection for the package manager
-and optional capabilities, previews derived dependencies, and asks for
-confirmation before writing the project.
+Every generated package is formatted with Biome before the CLI finishes —
+backend packages with the backend config, frontend ones with the frontend
+config. This happens with `--skip-install` too; the CLI carries its own
+formatter for that case.
 
-The default mode writes Turystack dependencies as local `file:` specs. This
-keeps the generated API connected to local packages while allowing the chosen
-package manager to resolve NestJS peer dependencies in the generated
-application's context.
-
-Every generated project is formatted with Biome before the CLI finishes. This
-also happens with `--skip-install`; the CLI carries its own formatter for that
-case.
-
-The generator also creates `.env` and `.env.example`. PostgreSQL, Valkey, and
-Elasticsearch receive ready local Docker values; deterministic resource names
-derive from the project name. IAM receives a random secret only in the ignored
-`.env`, while `.env.example` keeps a safe placeholder.
-
-Each selected API surface receives one temporary, versioned smoke-test
-controller. It returns a default response and contains no service injection or
-business-domain scaffolding.
-
-The web flow creates React, Vite, TanStack Router, the Turystack frontend
-libraries, every canonical source folder tracked with `.gitkeep`, and the
-complete API setup with OpenAPI, Kubb, React Query, `api/`, and generated
-`~sdk/`. The wizard asks whether the app consumes a specific API audience. The
-only initial product screen is `src/routes/index.tsx`, rendering the centered
-Welcome Turystack state; no fake feature, layout, sidebar, or auth flow is
-implemented.
-
-## Run the published CLI
+## Non-interactive
 
 ```bash
-# npm / npx
-npx @turystack/cli create api my-api
-
-# pnpm
-pnpm dlx @turystack/cli create api my-api
-
-# Yarn
-yarn dlx @turystack/cli create api my-api
-
-# Bun
-bunx @turystack/cli create api my-api
-```
-
-## Source organization
-
-CLI operations are grouped by their command path. `src/index.ts` only routes
-execution; API and web generators live under `src/commands/create/{type}/`
-with their own arguments, prompts, types, template, runner, and tests.
-
-## Non-interactive examples
-
-```bash
-# Single-audience API
-node cli/dist/index.js create api my-api \
-  --yes \
-  --local-root .
-
-# Multi-audience API with optional modules
-node cli/dist/index.js create api my-api \
-  --yes \
-  --format multi-audience \
-  --audiences admin,app \
-  --package-manager npm \
-  --modules database,logger,cache,iam \
-  --local-root .
-
-# Published package versions
-node cli/dist/index.js create api my-api \
-  --yes \
-  --registry
-
-# React web app using the default auth audience
-node cli/dist/index.js create web my-web \
-  --yes \
-  --local-root .
-
-# Web app consuming one API audience
-node cli/dist/index.js create web my-web \
-  --yes \
-  --audience customer \
-  --openapi-url http://localhost:3000/api/v1/customer/openapi \
-  --api-base-url http://localhost:3000 \
-  --local-root .
+node cli/dist/index.js create acme --yes --local-root .
+node cli/dist/index.js add audience admin --yes --port 3001 --local-root .
+node cli/dist/index.js add domain order --yes --local-root .
 ```
 
 Run `node cli/dist/index.js --help` for all options.
+
+## pnpm only
+
+`pnpm-workspace.yaml` is what the law detects a Turystack repository by, and
+supporting four package managers would mean four workspace layouts, of which
+three would never be exercised.
+
+## Source organization
+
+`src/index.ts` only routes. `src/workspace/` holds what every command needs —
+workspace discovery, the package table, env merging, Biome config resolution.
+`src/commands/create/templates/` holds one module per generated package, and
+`src/commands/add/` holds the commands that grow an existing repository.
 
 ## Documentation
 
 Options, API reference and examples:
 
 **https://tury.dev/libs/cli**
-
 
 ## Development
 

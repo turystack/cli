@@ -1,6 +1,6 @@
-import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { access, cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { dirname, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
@@ -10,6 +10,7 @@ import type {
   AgentTarget,
   InstalledSkill,
   SkillId,
+  SkillKind,
   SkillsOptions,
 } from './types.js'
 
@@ -30,33 +31,64 @@ const AGENT_DIRECTORY: Record<AgentTarget, string> = {
   codex: '.codex/skills',
 }
 
-const SKILL_PACKAGE: Record<
-  SkillId,
-  {
-    directory: string
-    name: string
-    packageName: string
-  }
-> = {
+const PROJECT_PLACEHOLDER = /\{\{PROJECT\}\}/g
+
+type SkillPackage = {
+  directory: string
+  kind: SkillKind
+  /** For `law`, the installed folder name. For `project`, the suffix after the project's name. */
+  name: string
+  packageName: string
+}
+
+const SKILL_PACKAGE: Record<SkillId, SkillPackage> = {
   architecture: {
     directory: 'architecture-pattern-skill',
-    name: 'tury-stack-architecture-pattern',
+    kind: 'law',
+    name: 'turystack-architecture-pattern',
     packageName: '@turystack/architecture-pattern',
   },
   backend: {
     directory: 'backend-pattern-skill',
-    name: 'tury-stack-backend-pattern',
+    kind: 'law',
+    name: 'turystack-backend-pattern',
     packageName: '@turystack/backend-pattern',
+  },
+  harness: {
+    directory: 'harness-skill',
+    kind: 'law',
+    name: 'turystack-harness',
+    packageName: '@turystack/harness',
+  },
+  'proof-mode': {
+    directory: 'proof-mode-skill',
+    kind: 'law',
+    name: 'turystack-proof-mode',
+    packageName: '@turystack/proof-mode',
   },
   frontend: {
     directory: 'frontend-pattern-skill',
-    name: 'tury-stack-frontend-pattern',
+    kind: 'law',
+    name: 'turystack-frontend-pattern',
     packageName: '@turystack/frontend-pattern',
   },
   'frontend-primitives': {
     directory: 'frontend-primitives-pattern-skill',
-    name: 'tury-stack-frontend-primitives-pattern',
+    kind: 'law',
+    name: 'turystack-frontend-primitives-pattern',
     packageName: '@turystack/frontend-primitives-pattern',
+  },
+  spec: {
+    directory: 'spec-template-skill',
+    kind: 'project',
+    name: 'spec',
+    packageName: '@turystack/spec-template',
+  },
+  uiux: {
+    directory: 'uiux-template-skill',
+    kind: 'project',
+    name: 'uiux',
+    packageName: '@turystack/uiux-template',
   },
 }
 
@@ -128,6 +160,47 @@ async function resolveSource(
   }
 }
 
+/**
+ * Directories a skill ships beside its sections.
+ *
+ * For a project skill: `assets` holds the design exports, `theme` the file each
+ * design system overrides the library with, and `board` the tasks the spec
+ * turned into — all three the project's from the first day, exactly like the
+ * sections. For a law skill: `flow` is a page it ships to be opened, rewritten
+ * on every install like the rest of the law.
+ */
+const SHIPPED_DIRECTORIES = [
+  'assets',
+  'board',
+  'flow',
+  'theme',
+]
+
+/** Files the placeholder is substituted in — text the project reads or ships. */
+const RENDERED = /\.(?:md|html|json|css)$/
+
+/** Substitutes the project's name through a materialized directory tree. */
+async function render(directory: string, project: string): Promise<void> {
+  for (const entry of await readdir(directory, {
+    withFileTypes: true,
+  })) {
+    const path = resolve(directory, entry.name)
+
+    if (entry.isDirectory()) {
+      await render(path, project)
+      continue
+    }
+
+    if (!RENDERED.test(entry.name)) {
+      continue
+    }
+
+    const contents = await readFile(path, 'utf8')
+
+    await writeFile(path, contents.replace(PROJECT_PLACEHOLDER, project), 'utf8')
+  }
+}
+
 /** Section files plus SKILL.md; README.md is a repository index, not a section. */
 async function readSections(source: string): Promise<Map<string, string>> {
   const entries = await readdir(source)
@@ -148,6 +221,84 @@ async function readSections(source: string): Promise<Map<string, string>> {
   return sections
 }
 
+/**
+ * A project's name, used to materialize its own skills. Read from the
+ * consuming package so `acme` produces `acme-spec` without anyone typing it,
+ * and falls back to the directory name.
+ */
+export async function resolveProjectName(
+  cwd: string,
+  explicit?: string,
+): Promise<string> {
+  if (explicit) {
+    return explicit
+  }
+
+  try {
+    const manifest = JSON.parse(
+      await readFile(resolve(cwd, 'package.json'), 'utf8'),
+    ) as { name?: string }
+
+    if (manifest.name) {
+      // A scope names the project; the package after it names one app inside
+      // it. `@acme/web` and `@acme/api` are two apps of one project, and they
+      // share one spec — so the scope wins when there is one.
+      const scoped = /^@([^/]+)\//.exec(manifest.name)
+
+      return scoped ? scoped[1] : manifest.name
+    }
+  } catch {
+    // No manifest, or an unreadable one: the directory name is a fine answer.
+  }
+
+  return basename(resolve(cwd))
+}
+
+/**
+ * The project's own skills carry its name, so nothing can resolve them from a
+ * constant. This manifest is where the names live: written on materialization,
+ * read by the harness, validated by the gate.
+ *
+ * It sits beside `skills/` rather than inside a skill, because a law skill is
+ * rewritten on every install and would lose it.
+ */
+async function writeManifest(
+  cwd: string,
+  agent: AgentTarget,
+  project: string,
+  installed: InstalledSkill[],
+): Promise<void> {
+  const own = installed.filter(
+    (item) => item.agent === agent && item.kind === 'project',
+  )
+
+  if (own.length === 0) {
+    return
+  }
+
+  const skills: Record<string, string> = {}
+
+  for (const item of own) {
+    skills[SKILL_PACKAGE[item.skill].name] = basename(item.target)
+  }
+
+  // Beside `skills/`, not inside it: an agent scanning that directory expects
+  // skill folders, and project state is not a skill.
+  const path = resolve(cwd, AGENT_DIRECTORY[agent], '..', 'turystack.json')
+  const existing = await readFile(path, 'utf8').catch(() => '{}')
+  const previous = JSON.parse(existing) as { skills?: Record<string, string> }
+
+  await writeFile(
+    path,
+    `${JSON.stringify(
+      { project, skills: { ...previous.skills, ...skills } },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
+}
+
 export async function runSkills(
   options: SkillsOptions,
 ): Promise<InstalledSkill[]> {
@@ -160,6 +311,7 @@ export async function runSkills(
   }
 
   const localRoot = await findLocalRoot(options.localRoot)
+  const project = await resolveProjectName(options.cwd, options.project)
   const task = createTaskStatus()
   const installed: InstalledSkill[] = []
 
@@ -170,21 +322,68 @@ export async function runSkills(
       const entry = SKILL_PACKAGE[skill]
       const source = await resolveSource(skill, localRoot)
       const sections = await readSections(source)
+      const folder =
+        entry.kind === 'project' ? `${project}-${entry.name}` : entry.name
 
       for (const agent of options.agents) {
-        const target = resolve(options.cwd, AGENT_DIRECTORY[agent], entry.name)
+        const target = resolve(options.cwd, AGENT_DIRECTORY[agent], folder)
+
+        // A project skill holds the project's own spec, tokens and design
+        // exports. Materializing it a second time would delete them, so the
+        // first materialization is the only one.
+        if (entry.kind === 'project' && (await exists(target))) {
+          installed.push({
+            agent,
+            files: 0,
+            kind: entry.kind,
+            preserved: true,
+            skill,
+            target,
+          })
+          continue
+        }
 
         await mkdir(target, {
           recursive: true,
         })
 
         for (const [file, contents] of sections) {
-          await writeFile(resolve(target, file), contents, 'utf8')
+          const rendered =
+            entry.kind === 'project'
+              ? contents.replace(PROJECT_PLACEHOLDER, project)
+              : contents
+
+          await writeFile(resolve(target, file), rendered, 'utf8')
+        }
+
+        // Both kinds ship directories beside their sections, and only a
+        // project skill's carry the placeholder: a leftover `{{PROJECT}}` in a
+        // shipped page reads as a bug in the project's own skill, while a law
+        // skill's page belongs to no project and must not be rewritten as if it
+        // did.
+        for (const directory of SHIPPED_DIRECTORIES) {
+          const shipped = resolve(source, directory)
+
+          if (!(await exists(shipped))) {
+            continue
+          }
+
+          const destination = resolve(target, directory)
+
+          await cp(shipped, destination, {
+            recursive: true,
+          })
+
+          if (entry.kind === 'project') {
+            await render(destination, project)
+          }
         }
 
         installed.push({
           agent,
           files: sections.size,
+          kind: entry.kind,
+          preserved: false,
           skill,
           target,
         })
@@ -195,19 +394,32 @@ export async function runSkills(
     throw error
   }
 
+  for (const agent of options.agents) {
+    await writeManifest(options.cwd, agent, project, installed)
+  }
+
   task.stop('Skills installed')
 
   note(
     installed
-      .map(
-        (item) =>
-          `${SKILL_PACKAGE[item.skill].name}  →  ${AGENT_DIRECTORY[item.agent]}  (${item.files} files)`,
-      )
+      .map((item) => {
+        const folder = basename(item.target)
+        const where = AGENT_DIRECTORY[item.agent]
+
+        if (item.preserved) {
+          return `${folder}  →  ${where}  (kept — this project's own)`
+        }
+
+        const suffix = item.kind === 'project' ? ', yours from now on' : ''
+        return `${folder}  →  ${where}  (${item.files} files${suffix})`
+      })
       .join('\n'),
     'Skills installed',
   )
 
-  outro('Coding agents pick them up automatically.')
+  if (options.closing !== false) {
+    outro('Coding agents pick them up automatically.')
+  }
 
   return installed
 }

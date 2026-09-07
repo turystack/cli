@@ -53,7 +53,7 @@ describe('runSkills', () => {
       ],
     })
 
-    const target = resolve(cwd, '.claude/skills/tury-stack-backend-pattern')
+    const target = resolve(cwd, '.claude/skills/turystack-backend-pattern')
     const written = (await readdir(target)).sort()
     const source = (
       await readdir(resolve(REPOSITORY_ROOT, 'backend-pattern-skill'))
@@ -81,7 +81,7 @@ describe('runSkills', () => {
     })
 
     const written = await readdir(
-      resolve(cwd, '.claude/skills/tury-stack-frontend-pattern'),
+      resolve(cwd, '.claude/skills/turystack-frontend-pattern'),
     )
 
     expect(written).not.toContain('README.md')
@@ -104,14 +104,14 @@ describe('runSkills', () => {
 
     expect(installed).toHaveLength(2)
 
-    const name = 'tury-stack-frontend-primitives-pattern'
+    const name = 'turystack-frontend-primitives-pattern'
 
     await expect(
       readFile(resolve(cwd, '.claude/skills', name, 'SKILL.md'), 'utf8'),
-    ).resolves.toContain('name: tury-stack-frontend-primitives-pattern')
+    ).resolves.toContain('name: turystack-frontend-primitives-pattern')
     await expect(
       readFile(resolve(cwd, '.codex/skills', name, 'SKILL.md'), 'utf8'),
-    ).resolves.toContain('name: tury-stack-frontend-primitives-pattern')
+    ).resolves.toContain('name: turystack-frontend-primitives-pattern')
   })
 
   it('writes section content byte-for-byte from the source package', async () => {
@@ -133,7 +133,7 @@ describe('runSkills', () => {
       'utf8',
     )
     const actual = await readFile(
-      resolve(cwd, '.claude/skills/tury-stack-backend-pattern/00-overview.md'),
+      resolve(cwd, '.claude/skills/turystack-backend-pattern/00-overview.md'),
       'utf8',
     )
 
@@ -158,10 +158,144 @@ describe('runSkills', () => {
 
     expect(installed).toHaveLength(3)
     expect((await readdir(resolve(cwd, '.codex/skills'))).sort()).toEqual([
-      'tury-stack-backend-pattern',
-      'tury-stack-frontend-pattern',
-      'tury-stack-frontend-primitives-pattern',
+      'turystack-backend-pattern',
+      'turystack-frontend-pattern',
+      'turystack-frontend-primitives-pattern',
     ])
+  })
+
+  it('installs the project harness under its canonical name', async () => {
+    const cwd = createTestDirectory('harness')
+
+    await runSkills({
+      agents: [
+        'claude',
+      ],
+      cwd,
+      localRoot: REPOSITORY_ROOT,
+      skills: [
+        'harness',
+      ],
+    })
+
+    await expect(
+      readFile(
+        resolve(cwd, '.claude/skills/turystack-harness/SKILL.md'),
+        'utf8',
+      ),
+    ).resolves.toContain('name: "turystack-harness"')
+  })
+
+  /**
+   * The board and the theme are the project's from the first day, exactly like
+   * a section — and unlike a section they are not markdown, so the placeholder
+   * substitution has to reach them. A shipped page still saying `{{PROJECT}}`
+   * reads as a bug in the project's own skill.
+   */
+  it("materializes the spec skill's board under the project's own name", async () => {
+    const cwd = createTestDirectory('board')
+
+    await runSkills({
+      agents: [
+        'claude',
+      ],
+      cwd,
+      localRoot: REPOSITORY_ROOT,
+      project: 'acme',
+      skills: [
+        'spec',
+      ],
+    })
+
+    const board = resolve(cwd, '.claude/skills/acme-spec/board')
+
+    expect((await readdir(board)).sort()).toEqual([
+      'example.html',
+      'example.json',
+      'reports',
+      'tasks.json',
+      'template.html',
+    ])
+
+    const state = await readFile(resolve(board, 'tasks.json'), 'utf8')
+    const page = await readFile(resolve(board, 'template.html'), 'utf8')
+
+    expect(JSON.parse(state)).toEqual({
+      project: 'acme',
+      schema: 'turystack.board/1',
+      tasks: [],
+    })
+    expect(page).toContain('acme — board')
+    expect(page).not.toContain('{{PROJECT}}')
+
+    // The example travels too, and it is a nested directory: a copy that stops
+    // at the first level would ship a board whose finished task opens nothing.
+    await expect(
+      readFile(resolve(board, 'reports/T-1/report.html'), 'utf8'),
+    ).resolves.toContain('T-1')
+  })
+
+  it("materializes the UI/UX skill's theme reference files", async () => {
+    const cwd = createTestDirectory('theme')
+
+    await runSkills({
+      agents: [
+        'claude',
+      ],
+      cwd,
+      localRoot: REPOSITORY_ROOT,
+      project: 'acme',
+      skills: [
+        'uiux',
+      ],
+    })
+
+    const theme = resolve(cwd, '.claude/skills/acme-uiux/theme')
+
+    expect((await readdir(theme)).sort()).toEqual([
+      'example.css',
+      'example.html',
+      'template.css',
+    ])
+
+    await expect(
+      readFile(resolve(theme, 'template.css'), 'utf8'),
+    ).resolves.toContain('acme — theme starting point')
+  })
+
+  /**
+   * A law skill's page travels too, and unrendered.
+   *
+   * `flow/index.html` explains the flow to whoever opens the harness in their
+   * own repository — it belongs to no project, so the placeholder substitution
+   * that a project skill's files get must not touch it.
+   */
+  it("ships the harness's flow page, and does not rewrite it", async () => {
+    const cwd = createTestDirectory('flow')
+
+    await runSkills({
+      agents: [
+        'claude',
+      ],
+      cwd,
+      localRoot: REPOSITORY_ROOT,
+      project: 'acme',
+      skills: [
+        'harness',
+      ],
+    })
+
+    const written = await readFile(
+      resolve(cwd, '.claude/skills/turystack-harness/flow/index.html'),
+      'utf8',
+    )
+    const source = await readFile(
+      resolve(REPOSITORY_ROOT, 'harness-skill/flow/index.html'),
+      'utf8',
+    )
+
+    expect(written).toContain('Turystack, end to end')
+    expect(written).toBe(source)
   })
 
   it('rejects an empty target selection', async () => {
