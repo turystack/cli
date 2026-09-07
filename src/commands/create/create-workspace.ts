@@ -65,6 +65,7 @@ const ALL_SKILLS: SkillId[] = [
   'harness',
   'proof-mode',
   'architecture',
+  'modeling',
   'backend',
   'frontend',
   'frontend-primitives',
