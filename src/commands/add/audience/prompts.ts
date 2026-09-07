@@ -40,6 +40,7 @@ function validateAudienceName(value: string | undefined): string | undefined {
 
 export async function completeAddAudienceOptions(
   parsed: ParsedAddAudienceOptions,
+  scope: string,
 ): Promise<Omit<AddAudienceOptions, 'cwd'>> {
   if (parsed.yes) {
     if (!parsed.name) {
@@ -83,7 +84,7 @@ export async function completeAddAudienceOptions(
   note(
     [
       `Surface    /api/v1/${name}  ·  its own OpenAPI document`,
-      `App        apps/${name}  ·  @repo/${name}`,
+      `App        apps/${name}  ·  ${scope}/${name}`,
       `Origin     http://localhost:${port}`,
       'Auth       none in the app — <AuthProvider> and nothing else',
     ].join('\n'),

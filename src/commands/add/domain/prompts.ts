@@ -33,6 +33,7 @@ function validateDomainName(value: string | undefined): string | undefined {
 
 export async function completeAddDomainOptions(
   parsed: ParsedAddDomainOptions,
+  scope: string,
 ): Promise<Omit<AddDomainOptions, 'cwd'>> {
   if (parsed.yes) {
     if (!parsed.name) {
@@ -72,7 +73,7 @@ export async function completeAddDomainOptions(
 
   note(
     [
-      `Package    @repo/${name}`,
+      `Package    ${scope}/${name}`,
       `Location   domains/${name}`,
       `Install    ${parsed.install ? 'pnpm install' : 'skipped'}`,
     ].join('\n'),

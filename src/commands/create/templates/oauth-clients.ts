@@ -5,7 +5,7 @@ import { renderManifest, sortedRecord } from './tsconfig.js'
 // turystack-proof:pattern-data — this file emits a package as source text.
 
 /**
- * `@repo/oauth-clients` — the OAuth client registry, and the runtime that uses
+ * The `oauth-clients` package — the OAuth client registry, and the runtime that uses
  * it.
  *
  * It has two entry points on purpose. The root is pure data and pure functions:
@@ -19,6 +19,7 @@ import { renderManifest, sortedRecord } from './tsconfig.js'
  * has no business carrying.
  */
 export function generateOAuthClientsFiles(context: {
+  scope: string
   /** The applications allowed to start a sign-in, from `create`. */
   clients: {
     callbackPath: string
@@ -45,6 +46,7 @@ export function generateOAuthClientsFiles(context: {
     'biome.jsonc': renderBiomeConfig({
       kind: 'frontend',
       nested: true,
+      scope: context.scope,
     }),
     'package.json': renderManifest({
       dependencies: sortedRecord(context.dependencies),
@@ -63,7 +65,7 @@ export function generateOAuthClientsFiles(context: {
         },
       },
       main: './dist/index.js',
-      name: '@repo/oauth-clients',
+      name: `${context.scope}/oauth-clients`,
       private: true,
       scripts: {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
@@ -73,7 +75,7 @@ export function generateOAuthClientsFiles(context: {
       types: './dist/index.d.ts',
       version: '0.0.0',
     }),
-    'README.md': `# @repo/oauth-clients
+    'README.md': `# ${context.scope}/oauth-clients
 
 Which applications may sign a person in, and the browser runtime that does it.
 
@@ -81,7 +83,7 @@ Which applications may sign a person in, and the browser runtime that does it.
 
 \`\`\`ts
 // the API, validating a redirect target
-import { oauthClients } from '@repo/oauth-clients'
+import { oauthClients } from '${context.scope}/oauth-clients'
 
 OAuthModule.register((config) => ({
   clients: oauthClients({ admin: config.get('ADMIN_ORIGIN') }),
@@ -91,7 +93,7 @@ OAuthModule.register((config) => ({
 
 \`\`\`tsx
 // a product app, holding no auth code of its own
-import { AuthProvider } from '@repo/oauth-clients/react'
+import { AuthProvider } from '${context.scope}/oauth-clients/react'
 
 <AuthProvider client="admin">
   <Outlet />

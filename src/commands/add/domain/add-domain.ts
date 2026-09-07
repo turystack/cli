@@ -10,8 +10,11 @@ import {
 } from '../../../workspace/format.js'
 import { assertDirectoryAvailable, writeFiles } from '../../../workspace/fs.js'
 import { registerProject } from '../../../workspace/manifest.js'
-import { validateName } from '../../../workspace/names.js'
-import { requireWorkspaceRoot } from '../../../workspace/root.js'
+import { validateName, workspaceScope } from '../../../workspace/names.js'
+import {
+  readWorkspaceName,
+  requireWorkspaceRoot,
+} from '../../../workspace/root.js'
 import { installWorkspace } from '../../../workspace/run.js'
 import { step } from '../../../workspace/status.js'
 import { findLocalRoot, turystackSpecs } from '../../../workspace/turystack.js'
@@ -34,6 +37,7 @@ export async function runAddDomain(options: AddDomainOptions): Promise<void> {
   validateName(options.name, 'Domain name')
 
   const root = await requireWorkspaceRoot(options.cwd)
+  const scope = workspaceScope(await readWorkspaceName(root))
   const directory = `domains/${options.name}`
   const target = resolve(root, directory)
 
@@ -65,7 +69,7 @@ export async function runAddDomain(options: AddDomainOptions): Promise<void> {
           dependencies: {
             // The catalogue is a workspace package, so the domain reaches it by
             // name rather than by a relative path out of its own folder.
-            '@repo/exceptions': 'workspace:*',
+            [`${scope}/exceptions`]: 'workspace:*',
             zod: '^4.4.3',
             ...turystackSpecs(
               target,
@@ -90,6 +94,7 @@ export async function runAddDomain(options: AddDomainOptions): Promise<void> {
             ),
           },
           options,
+          scope,
         }),
       )
       await registerProject(root, `./${directory}/tsconfig.build.json`)
@@ -129,7 +134,7 @@ export async function runAddDomain(options: AddDomainOptions): Promise<void> {
 
   note(
     [
-      `Package    @repo/${options.name}`,
+      `Package    ${scope}/${options.name}`,
       `Location   ${directory}`,
       'Build      registered in the root tsconfig solution',
     ].join('\n'),

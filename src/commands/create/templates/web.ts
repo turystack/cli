@@ -26,11 +26,15 @@ export type WebTemplateContext = {
    * meets on their second `pnpm dev`, not on the first.
    */
   port: number
+  /** The npm scope this repository's own packages live under. */
+  scope: string
 }
 
 export const CALLBACK_PATH = '/callback'
 
 function renderRootRoute(context: WebTemplateContext): string {
+  const scope = context.scope
+
   const inner = `      <QueryClientProvider client={queryClient}>
         <DataOutcomeContext value={outcomeConfig}>
           <Outlet />
@@ -62,7 +66,7 @@ ${inner}
 
   return `import { QueryClientProvider } from '@tanstack/react-query'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
-import { AuthProvider } from '@repo/oauth-clients/react'
+import { AuthProvider } from '${scope}/oauth-clients/react'
 import { DataOutcomeContext } from '@turystack/react-hooks'
 import { Loader, TuryProvider } from '@turystack/react-web'
 
@@ -94,9 +98,11 @@ ${inner}
 }
 
 function renderSignInRoute(context: WebTemplateContext): string {
+  const scope = context.scope
+
   return `import { zodResolver } from '@hookform/resolvers/zod'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
-import { signInWithPasswordSchema } from '@repo/iam/contracts'
+import { signInWithPasswordSchema } from '${scope}/iam/contracts'
 import {
   Button,
   Card,
@@ -198,13 +204,13 @@ function SignInPage() {
 `
 }
 
-function renderAuthApiClient(): string {
+function renderAuthApiClient(scope: string): string {
   return `import { z } from 'zod'
 
 import {
   signUpSchema,
   signInWithPasswordSchema,
-} from '@repo/iam/contracts'
+} from '${scope}/iam/contracts'
 
 const apiBaseUrl = z
   .string()
@@ -214,7 +220,7 @@ const apiBaseUrl = z
 /**
  * The sign-in calls, typed from the schemas the API validates against.
  *
- * The shapes are imported from \`@repo/iam/contracts\` rather than written
+ * The shapes are imported from \`${scope}/iam/contracts\` rather than written
  * here: one definition, two consumers, so a field added to the form and to the
  * route cannot disagree. The generated \`~sdk\` covers the rest of the surface;
  * these three exist before it does, because signing in is what produces the
@@ -284,6 +290,8 @@ export function signInWithProvider(input: {
 }
 
 export function generateWebFiles(context: WebTemplateContext): GeneratedFiles {
+  const scope = context.scope
+
   const isAuth = context.kind === 'auth'
   const env = `# -----------------------------------------------------------------------------
 # API code generation
@@ -306,6 +314,7 @@ VITE_API_BASE_URL=${context.apiBaseUrl}
     'biome.jsonc': renderBiomeConfig({
       kind: 'frontend',
       nested: true,
+      scope,
     }),
     'index.html': `<!doctype html>
 <html lang="en">
@@ -376,7 +385,7 @@ export default defineConfig({
       engines: {
         node: '>=20',
       },
-      name: `@repo/${context.name}`,
+      name: `${scope}/${context.name}`,
       private: true,
       scripts: {
         'api:generate': 'kubb generate',
@@ -402,7 +411,7 @@ export default defineConfig({
       version: '0.0.0',
     }),
     'README.md': isAuth
-      ? `# @repo/${context.name}
+      ? `# ${scope}/${context.name}
 
 The sign-in application — every authentication screen in this repository lives
 here, and nowhere else.
@@ -420,10 +429,10 @@ apps/<product>  →  POST /api/v1/auth/token   →  httpOnly cookies
 \`\`\`
 
 The contracts for sign-in and sign-up come from
-\`@repo/iam/contracts\` — the same schemas the API validates against, so
+\`${scope}/iam/contracts\` — the same schemas the API validates against, so
 the form and the route cannot disagree.
 `
-      : `# @repo/${context.name}
+      : `# ${scope}/${context.name}
 
 The **${context.audience}** application.
 
@@ -530,7 +539,7 @@ declare module '@tanstack/react-router' {
     // is one file for the whole repository rather than a copy per app.
     'src/styles.css': `@import 'tailwindcss';
 @import '@turystack/react-web/styles.css';
-@import '@repo/ui/theme.css';
+@import '${scope}/ui/theme.css';
 `,
     'src/support/.gitkeep': '',
     'src/telemetry/.gitkeep': '',
@@ -589,7 +598,7 @@ export default web({
   }
 
   if (isAuth) {
-    files['src/api/auth.ts'] = renderAuthApiClient()
+    files['src/api/auth.ts'] = renderAuthApiClient(scope)
     files['src/api/auth.test.ts'] =
       `import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

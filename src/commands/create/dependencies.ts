@@ -8,8 +8,11 @@
  * the generated apps for as long as they did.
  */
 
+// The root config extends the baseline. It used to extend the backend package,
+// which meant a monorepo declared itself a backend and every frontend file the
+// nested configs did not reach was linted by NestJS rules.
 export const ROOT_TURYSTACK = [
-  '@turystack/backend-config',
+  '@turystack/config',
   '@turystack/proof-mode-gates',
 ] as const
 

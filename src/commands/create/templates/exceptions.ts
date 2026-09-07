@@ -1,3 +1,4 @@
+import { renderBiomeConfig } from '../../../workspace/biome.js'
 import type { GeneratedFiles } from '../../../workspace/fs.js'
 import {
   renderManifest,
@@ -9,17 +10,23 @@ import {
 // turystack-proof:pattern-data — this file emits a package as source text.
 
 /**
- * `@repo/exceptions` — one error catalogue for the whole product.
+ * The `exceptions` package — one error catalogue for the whole product.
  *
  * It is its own package because every domain is one too: a catalogue kept
  * inside a domain would make every other domain depend on that domain just to
  * raise an error.
  */
 export function generateExceptionsFiles(context: {
+  scope: string
   dependencies: Record<string, string>
   devDependencies: Record<string, string>
 }): GeneratedFiles {
   return {
+    'biome.jsonc': renderBiomeConfig({
+      kind: 'backend',
+      nested: true,
+      scope: context.scope,
+    }),
     'package.json': renderManifest({
       dependencies: sortedRecord(context.dependencies),
       devDependencies: sortedRecord(context.devDependencies),
@@ -31,7 +38,7 @@ export function generateExceptionsFiles(context: {
         },
       },
       main: './dist/index.js',
-      name: '@repo/exceptions',
+      name: `${context.scope}/exceptions`,
       private: true,
       scripts: {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',

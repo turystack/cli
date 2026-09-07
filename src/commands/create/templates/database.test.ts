@@ -6,6 +6,7 @@ const files = generateDatabaseFiles({
   databaseName: 'acme',
   dependencies: {},
   devDependencies: {},
+  scope: '@acme',
 })
 
 /**

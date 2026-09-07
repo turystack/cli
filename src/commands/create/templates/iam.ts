@@ -1,3 +1,4 @@
+import { renderBiomeConfig } from '../../../workspace/biome.js'
 import type { GeneratedFiles } from '../../../workspace/fs.js'
 import { renderContracts } from './iam/contracts.js'
 import { renderEntities } from './iam/entities.js'
@@ -23,8 +24,16 @@ import {
 export function generateIamFiles(context: {
   dependencies: Record<string, string>
   devDependencies: Record<string, string>
+  scope: string
 }): GeneratedFiles {
+  const scope = context.scope
+
   return {
+    'biome.jsonc': renderBiomeConfig({
+      kind: 'backend',
+      nested: true,
+      scope,
+    }),
     'package.json': renderManifest({
       dependencies: sortedRecord(context.dependencies),
       devDependencies: sortedRecord(context.devDependencies),
@@ -41,7 +50,7 @@ export function generateIamFiles(context: {
         },
       },
       main: './dist/index.js',
-      name: '@repo/iam',
+      name: `${scope}/iam`,
       private: true,
       scripts: {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
@@ -53,7 +62,7 @@ export function generateIamFiles(context: {
       types: './dist/index.d.ts',
       version: '0.0.0',
     }),
-    'README.md': `# @repo/iam
+    'README.md': `# ${scope}/iam
 
 Identity and access: the person, the organizations they act for, and the
 permissions they hold there.
@@ -91,9 +100,9 @@ idempotent and runs on every deploy, and it reports what the table holds and the
 code does not.
 `,
     ...renderContracts(),
-    ...renderEntities(),
-    ...renderRepositories(),
-    ...renderUseCases(),
+    ...renderEntities(scope),
+    ...renderRepositories(scope),
+    ...renderUseCases(scope),
     'src/index.ts': `export {
   mockMembership,
   mockOrganization,

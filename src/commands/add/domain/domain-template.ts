@@ -13,6 +13,8 @@ export type DomainTemplateContext = {
   dependencies: Record<string, string>
   devDependencies: Record<string, string>
   options: AddDomainOptions
+  /** The npm scope this repository's own packages live under. */
+  scope: string
 }
 
 function sorted(record: Record<string, string>): Record<string, string> {
@@ -25,6 +27,7 @@ export function generateDomainFiles(
   context: DomainTemplateContext,
 ): GeneratedFiles {
   const { name } = context.options
+  const scope = context.scope
 
   return {
     'package.json': `${JSON.stringify(
@@ -39,7 +42,7 @@ export function generateDomainFiles(
           },
         },
         main: './dist/index.js',
-        name: `@repo/${name}`,
+        name: `${scope}/${name}`,
         private: true,
         scripts: {
           test: 'vitest run',
@@ -53,7 +56,7 @@ export function generateDomainFiles(
       null,
       2,
     )}\n`,
-    'README.md': `# @repo/${name}
+    'README.md': `# ${scope}/${name}
 
 The ${titleCase(name)} domain.
 
@@ -79,7 +82,7 @@ entity never imports its repository, and a repository never imports a use case.
 
 ## Depending on another domain
 
-Add it to \`dependencies\` as \`"@repo/<other>": "workspace:*"\` and import its
+Add it to \`dependencies\` as \`"${scope}/<other>": "workspace:*"\` and import its
 use case from its barrel. Never reach past the barrel into another domain's
 repository — and never create a cycle: \`tsc -b\` refuses one, which is the
 point of each domain being its own package.

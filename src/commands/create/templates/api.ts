@@ -12,6 +12,8 @@ export type ApiTemplateContext = {
   devDependencies: Record<string, string>
   name: string
   project: string
+  /** The npm scope this repository's own packages live under. */
+  scope: string
 }
 
 /** The env var carrying one client application's origin. */
@@ -20,6 +22,8 @@ export function originEnvName(audience: string): string {
 }
 
 function renderConfigSchema(context: ApiTemplateContext): string {
+  const scope = context.scope
+
   const origins = context.audiences
     .map((audience) => `  ${originEnvName(audience)}: z.string().url(),`)
     .join('\n')
@@ -44,7 +48,7 @@ export const configSchema = defineConfigSchema({
   /** Where the browser is sent to sign in. */
   AUTH_APP_URL: z.string().url(),
   /**
-   * One origin per client application. The registry in \`@repo/oauth-clients\`
+   * One origin per client application. The registry in \`${scope}/oauth-clients\`
    * holds the callback path; the origin is environment-specific, so it arrives
    * here — and a client with no origin configured is simply not registered,
    * which fails loudly at sign-in instead of quietly accepting a guessed URL.
@@ -63,6 +67,8 @@ declare module '@turystack/nestjs-config' {
 }
 
 function renderAppModule(context: ApiTemplateContext): string {
+  const scope = context.scope
+
   const origins = context.audiences
     .map(
       (audience) =>
@@ -81,9 +87,9 @@ function renderAppModule(context: ApiTemplateContext): string {
     .join('\n')
 
   return `import { Module } from '@nestjs/common'
-import { databaseRelations, databaseSchema } from '@repo/database'
-import { ResolveProfile } from '@repo/iam'
-import { oauthClients } from '@repo/oauth-clients'
+import { databaseRelations, databaseSchema } from '${scope}/database'
+import { ResolveProfile } from '${scope}/iam'
+import { oauthClients } from '${scope}/oauth-clients'
 import { ConfigModule } from '@turystack/nestjs-config'
 import { ContextModule } from '@turystack/nestjs-context'
 import { DatabaseModule } from '@turystack/nestjs-database'
@@ -145,7 +151,7 @@ export class AppModule {}
 `
 }
 
-function renderAuthController(): string {
+function renderAuthController(scope: string): string {
   return `import { Body, Inject } from '@nestjs/common'
 import {
   RequestCode,
@@ -157,7 +163,7 @@ import {
   SignInWithProvider,
   SignUp,
   signUpSchema,
-} from '@repo/iam'
+} from '${scope}/iam'
 import { OAuthService } from '@turystack/nestjs-oauth'
 import { Controller, Route } from '@turystack/nestjs-server'
 import {
@@ -173,6 +179,11 @@ import { z } from 'zod'
  * person is and hands that to \`completeAuthorization\`, which issues the
  * single-use code the client application exchanges for cookies. Keeping the two
  * apart is what lets the same sign-in serve a browser and, later, a native app.
+ *
+ * Each route reads the transaction before it does anything else. Reading it
+ * only at the end — which is where \`completeAuthorization\` reads it — meant a
+ * sign-up with an expired one answered 401 after the account and the
+ * organization had already been written.
  */
 const redirectResponse = z.object({
   redirectTo: z.string(),
@@ -238,6 +249,8 @@ export class AuthController {
   async signIn(
     @Body() body: z.infer<typeof signInBody>,
   ): Promise<z.infer<typeof redirectResponse>> {
+    await this.oauth.readTransaction(body.tx)
+
     const user = await this.signInWithPassword.execute(body)
 
     return {
@@ -261,6 +274,8 @@ export class AuthController {
   async signUp(
     @Body() body: z.infer<typeof signUpBody>,
   ): Promise<z.infer<typeof redirectResponse>> {
+    await this.oauth.readTransaction(body.tx)
+
     const user = await this.signUpUseCase.execute(body)
 
     return {
@@ -307,6 +322,8 @@ export class AuthController {
   async signInWithCodeRoute(
     @Body() body: z.infer<typeof codeBody>,
   ): Promise<z.infer<typeof redirectResponse>> {
+    await this.oauth.readTransaction(body.tx)
+
     const user = await this.signInWithCode.execute(body)
 
     return {
@@ -330,6 +347,8 @@ export class AuthController {
   async social(
     @Body() body: z.infer<typeof socialBody>,
   ): Promise<z.infer<typeof redirectResponse>> {
+    await this.oauth.readTransaction(body.tx)
+
     const profile = await this.socialAuth.resolveIdentity(
       body.provider as SocialAuthProvider,
       body.idToken,
@@ -349,9 +368,9 @@ export class AuthController {
 `
 }
 
-function renderAudienceController(audience: string): string {
+function renderAudienceController(audience: string, scope: string): string {
   return `import { Body, Inject } from '@nestjs/common'
-import { GetProfile, UpdateProfile } from '@repo/iam'
+import { GetProfile, UpdateProfile } from '${scope}/iam'
 import { PersonNameSchema } from '@turystack/fields'
 import {
   Auth,
@@ -521,11 +540,14 @@ ${projects}
 }
 
 export function generateApiFiles(context: ApiTemplateContext): GeneratedFiles {
+  const scope = context.scope
+
   const files: GeneratedFiles = {
     '.gitignore': 'coverage\ndist\nnode_modules\n*.tsbuildinfo\n',
     'biome.jsonc': renderBiomeConfig({
       kind: 'backend',
       nested: true,
+      scope,
     }),
     'package.json': renderManifest({
       dependencies: sortedRecord(context.dependencies),
@@ -533,7 +555,7 @@ export function generateApiFiles(context: ApiTemplateContext): GeneratedFiles {
       engines: {
         node: '>=20',
       },
-      name: `@repo/${context.name}`,
+      name: `${scope}/${context.name}`,
       private: true,
       scripts: {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
@@ -552,7 +574,7 @@ export function generateApiFiles(context: ApiTemplateContext): GeneratedFiles {
       type: 'module',
       version: '0.0.0',
     }),
-    'README.md': `# @repo/${context.name}
+    'README.md': `# ${scope}/${context.name}
 
 The API, and the authorization server behind every sign-in.
 
@@ -570,8 +592,8 @@ ${context.audiences.map((audience) => `| \`${audience}\` | \`/api/v1/${audience}
 
 This app holds delivery and composition. Schema, entity, repository and use case
 live in \`domains/\`, one package each; the error catalogue is
-\`@repo/exceptions\`; the tables are \`@repo/database\`; who may sign in is
-\`@repo/oauth-clients\`, the same module the browser reads.
+\`${scope}/exceptions\`; the tables are \`${scope}/database\`; who may sign in is
+\`${scope}/oauth-clients\`, the same module the browser reads.
 
 \`src/controllers/auth/\` establishes *who* the person is and hands that to
 \`OAuthService.completeAuthorization\`. The authorization code, the PKCE check
@@ -584,9 +606,13 @@ From the repository root:
 
 \`\`\`bash
 pnpm docker:up
-pnpm db:migrate
+pnpm build
+pnpm db:generate && pnpm db:migrate && pnpm db:seed
 pnpm --filter ./apps/${context.name} dev
 \`\`\`
+
+\`pnpm build\` first: this app imports the domains by their package entry
+points, which are \`dist\`.
 `,
     'src/app.module.ts': renderAppModule(context),
     'src/config.schema.test.ts': `import { describe, expect, it } from 'vitest'
@@ -641,9 +667,9 @@ describe('configSchema', () => {
 })
 `,
     'src/config.schema.ts': renderConfigSchema(context),
-    'src/controllers/auth/auth.controller.ts': renderAuthController(),
+    'src/controllers/auth/auth.controller.ts': renderAuthController(scope),
     'src/iam-domain.module.ts': `import { Global, Module } from '@nestjs/common'
-import { IAM_PROVIDERS } from '@repo/iam'
+import { IAM_PROVIDERS } from '${scope}/iam'
 
 /**
  * The IAM domain, visible to every injector in the process.
@@ -666,7 +692,7 @@ export class IamDomainModule {}
 `,
     'src/main.ts': renderMain(context),
     'src/seed.ts': `import { NestFactory } from '@nestjs/core'
-import { SeedIam } from '@repo/iam'
+import { SeedIam } from '${scope}/iam'
 
 import { AppModule } from '@/app.module.js'
 
@@ -785,7 +811,7 @@ export default backendE2e({
 
   for (const audience of context.audiences) {
     files[`src/controllers/${audience}/${audience}.controller.ts`] =
-      renderAudienceController(audience)
+      renderAudienceController(audience, scope)
   }
 
   return files

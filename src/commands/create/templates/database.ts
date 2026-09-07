@@ -1,3 +1,4 @@
+import { renderBiomeConfig } from '../../../workspace/biome.js'
 import type { GeneratedFiles } from '../../../workspace/fs.js'
 import {
   renderManifest,
@@ -9,7 +10,7 @@ import {
 // turystack-proof:pattern-data — this file emits a package as source text.
 
 /**
- * `@repo/database` — the schema, its relations and its migrations.
+ * The `database` package — the schema, its relations and its migrations.
  *
  * It is a package rather than a folder inside the API because persistence is
  * shared: a handler app, a second API and the migration CLI all read the same
@@ -39,11 +40,17 @@ export const IAM_TABLES = [
 ] as const
 
 export function generateDatabaseFiles(context: {
+  scope: string
   databaseName: string
   dependencies: Record<string, string>
   devDependencies: Record<string, string>
 }): GeneratedFiles {
   return {
+    'biome.jsonc': renderBiomeConfig({
+      kind: 'backend',
+      nested: true,
+      scope: context.scope,
+    }),
     'drizzle.config.ts': `import { config } from 'dotenv'
 import { defineConfig } from 'drizzle-kit'
 import { z } from 'zod'
@@ -79,7 +86,7 @@ export default defineConfig({
         },
       },
       main: './dist/index.js',
-      name: '@repo/database',
+      name: `${context.scope}/database`,
       private: true,
       scripts: {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
@@ -92,7 +99,7 @@ export default defineConfig({
       types: './dist/index.d.ts',
       version: '0.0.0',
     }),
-    'README.md': `# @repo/database
+    'README.md': `# ${context.scope}/database
 
 The product's persistence: the Drizzle schema, its relations, and the migrations
 generated from them.
@@ -128,7 +135,7 @@ export const tables = materializeSchema(databaseSchema(createSchemaBuilder()))
  * migrates — and it does not complain: it reports \`0 tables\` and writes no SQL.
  */
 export const {
-${IAM_TABLES.map((table) => '  ' + table + ',').join('\n')}
+${IAM_TABLES.map((table) => `  ${table},`).join('\n')}
 } = tables
 `,
     'src/database.schema.ts': `import { sql } from 'drizzle-orm'

@@ -11,7 +11,11 @@ import {
   type GeneratedFiles,
   writeFiles,
 } from '../../workspace/fs.js'
-import { databaseName, validateName } from '../../workspace/names.js'
+import {
+  databaseName,
+  validateName,
+  workspaceScope,
+} from '../../workspace/names.js'
 import { registerOAuthClient } from '../../workspace/oauth-clients.js'
 import { assertNoWorkspaceAbove } from '../../workspace/root.js'
 import { installWorkspace } from '../../workspace/run.js'
@@ -123,6 +127,7 @@ export async function runCreateWorkspace(
     )
   }
 
+  const scope = workspaceScope(options.name)
   const apiBaseUrl = `http://localhost:${API_PORT}`
   const authAppUrl = `http://localhost:${AUTH_APP_PORT}`
   const at = (directory: string) => resolve(target, directory)
@@ -184,6 +189,7 @@ export async function runCreateWorkspace(
                 '@turystack/backend-config',
               ]),
             },
+            scope,
           }),
         ],
         [
@@ -202,6 +208,7 @@ export async function runCreateWorkspace(
                 '@turystack/backend-config',
               ]),
             },
+            scope,
           }),
         ],
         [
@@ -224,6 +231,7 @@ export async function runCreateWorkspace(
                 '@turystack/frontend-config',
               ]),
             },
+            scope,
           }),
         ],
         [
@@ -231,8 +239,8 @@ export async function runCreateWorkspace(
           generateIamFiles({
             dependencies: {
               '@nestjs/common': '^11.0.0',
-              '@repo/database': 'workspace:*',
-              '@repo/exceptions': 'workspace:*',
+              [`${scope}/database`]: 'workspace:*',
+              [`${scope}/exceptions`]: 'workspace:*',
               uuidv7: '^1.2.1',
               zod: '^4.4.3',
               ...turystack('domains/iam', IAM_TURYSTACK),
@@ -244,6 +252,7 @@ export async function runCreateWorkspace(
                 '@turystack/backend-config',
               ]),
             },
+            scope,
           }),
         ],
         [
@@ -251,10 +260,10 @@ export async function runCreateWorkspace(
           generateApiFiles({
             audiences: PRODUCT_APPS.map((app) => app.name),
             dependencies: {
-              '@repo/database': 'workspace:*',
-              '@repo/exceptions': 'workspace:*',
-              '@repo/iam': 'workspace:*',
-              '@repo/oauth-clients': 'workspace:*',
+              [`${scope}/database`]: 'workspace:*',
+              [`${scope}/exceptions`]: 'workspace:*',
+              [`${scope}/iam`]: 'workspace:*',
+              [`${scope}/oauth-clients`]: 'workspace:*',
               ...API_DEPENDENCIES,
               ...turystack(`apps/${API_NAME}`, API_TURYSTACK),
             },
@@ -266,6 +275,7 @@ export async function runCreateWorkspace(
             },
             name: API_NAME,
             project: options.name,
+            scope,
           }),
         ],
         [
@@ -274,9 +284,9 @@ export async function runCreateWorkspace(
             apiBaseUrl,
             audience: 'auth',
             dependencies: {
-              '@repo/iam': 'workspace:*',
-              '@repo/oauth-clients': 'workspace:*',
-              '@repo/ui': 'workspace:*',
+              [`${scope}/iam`]: 'workspace:*',
+              [`${scope}/oauth-clients`]: 'workspace:*',
+              [`${scope}/ui`]: 'workspace:*',
               ...WEB_DEPENDENCIES,
               ...turystack(`apps/${AUTH_APP_NAME}`, WEB_TURYSTACK),
             },
@@ -290,6 +300,7 @@ export async function runCreateWorkspace(
             name: AUTH_APP_NAME,
             openApiUrl: `${apiBaseUrl}/api/v1/auth/openapi`,
             port: AUTH_APP_PORT,
+            scope,
           }),
         ],
         ...PRODUCT_APPS.map(
@@ -304,8 +315,8 @@ export async function runCreateWorkspace(
               apiBaseUrl,
               audience: app.name,
               dependencies: {
-                '@repo/oauth-clients': 'workspace:*',
-                '@repo/ui': 'workspace:*',
+                [`${scope}/oauth-clients`]: 'workspace:*',
+                [`${scope}/ui`]: 'workspace:*',
                 ...WEB_DEPENDENCIES,
                 ...turystack(`apps/${app.name}`, WEB_TURYSTACK),
               },
@@ -319,6 +330,7 @@ export async function runCreateWorkspace(
               name: app.name,
               openApiUrl: `${apiBaseUrl}/api/v1/${app.name}/openapi`,
               port: app.port,
+              scope,
             }),
           ],
         ),
@@ -419,11 +431,18 @@ export async function runCreateWorkspace(
     })
   }
 
+  // `pnpm build` is not optional here and used to be missing. The API imports
+  // the domain packages by their published entry points, which are `dist`, so
+  // on a repository nobody has built yet `pnpm dev` and `pnpm db:seed` both
+  // stop at ERR_MODULE_NOT_FOUND on the first import. The seed is not optional
+  // either: without it there are no roles and no permissions, so the first
+  // account that signs up gets a session that can do nothing.
   outro(
     [
       `cd ${options.name}`,
       'pnpm docker:up',
-      'pnpm db:generate && pnpm db:migrate',
+      'pnpm build',
+      'pnpm db:generate && pnpm db:migrate && pnpm db:seed',
       'pnpm dev',
     ].join(' && '),
   )

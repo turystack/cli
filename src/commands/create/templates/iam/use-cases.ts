@@ -8,11 +8,11 @@
  * workspace and the membership that ties them — and any three without the
  * fourth is an account that exists and does not work.
  */
-export function renderUseCases(): Record<string, string> {
+export function renderUseCases(scope: string): Record<string, string> {
   return {
     'src/use-cases/get-profile/get-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
-import { exceptions } from '@repo/exceptions'
+import { DatabaseService } from '${scope}/database'
+import { exceptions } from '${scope}/exceptions'
 
 import { MembershipRepository } from '@/membership.repository.js'
 import { OrganizationRepository } from '@/organization.repository.js'
@@ -267,7 +267,7 @@ export class ResolveProfile implements IamProfileResolver {
 }
 `,
     'src/use-cases/seed-iam/seed-iam.ts': `import { Inject, Injectable, Logger } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
+import { DatabaseService } from '${scope}/database'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
 
@@ -397,7 +397,7 @@ export class SeedIam {
 }
 `,
     'src/use-cases/sign-in-with-code/sign-in-with-code.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { exceptions } from '@repo/exceptions'
+import { exceptions } from '${scope}/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 
@@ -568,7 +568,7 @@ describe('SignInWithPassword', () => {
 })
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { exceptions } from '@repo/exceptions'
+import { exceptions } from '${scope}/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 
 import type { SignInWithPasswordInput } from '@/iam.types.js'
@@ -611,7 +611,7 @@ export class SignInWithPassword {
 }
 `,
     'src/use-cases/sign-in-with-provider/sign-in-with-provider.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
+import { DatabaseService } from '${scope}/database'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
@@ -717,8 +717,8 @@ export class SignInWithProvider {
 }
 `,
     'src/use-cases/sign-up/sign-up.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
-import { exceptions } from '@repo/exceptions'
+import { DatabaseService } from '${scope}/database'
+import { exceptions } from '${scope}/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'

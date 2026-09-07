@@ -14,9 +14,13 @@ import {
   pascalCase,
   titleCase,
   validateName,
+  workspaceScope,
 } from '../../../workspace/names.js'
 import { registerOAuthClient } from '../../../workspace/oauth-clients.js'
-import { requireWorkspaceRoot } from '../../../workspace/root.js'
+import {
+  readWorkspaceName,
+  requireWorkspaceRoot,
+} from '../../../workspace/root.js'
 import { installWorkspace } from '../../../workspace/run.js'
 import { step } from '../../../workspace/status.js'
 import { findLocalRoot, turystackSpecs } from '../../../workspace/turystack.js'
@@ -85,6 +89,7 @@ export async function runAddAudience(
   }
 
   const root = await requireWorkspaceRoot(options.cwd)
+  const scope = workspaceScope(await readWorkspaceName(root))
   const appDirectory = `apps/${options.name}`
   const appTarget = resolve(root, appDirectory)
   const api = resolve(root, `apps/${API_NAME}`)
@@ -114,7 +119,7 @@ export async function runAddAudience(
       // The API surface.
       await writeFiles(api, {
         [`src/controllers/${options.name}/${options.name}.controller.ts`]:
-          renderAudienceController(options.name),
+          renderAudienceController(options.name, scope),
       })
       await insertBefore(
         resolve(api, 'src/app.module.ts'),
@@ -178,8 +183,8 @@ export async function runAddAudience(
           apiBaseUrl,
           audience: options.name,
           dependencies: {
-            '@repo/oauth-clients': 'workspace:*',
-            '@repo/ui': 'workspace:*',
+            [`${scope}/oauth-clients`]: 'workspace:*',
+            [`${scope}/ui`]: 'workspace:*',
             ...WEB_DEPENDENCIES,
             ...turystackSpecs(
               appTarget,
@@ -205,6 +210,7 @@ export async function runAddAudience(
           name: options.name,
           openApiUrl: `${apiBaseUrl}/api/v1/${options.name}/openapi`,
           port: options.port,
+          scope,
         }),
       )
     },
@@ -254,7 +260,7 @@ export async function runAddAudience(
   note(
     [
       `Surface    /api/v1/${options.name}  ·  its own OpenAPI document`,
-      `App        ${appDirectory}  ·  @repo/${options.name}`,
+      `App        ${appDirectory}  ·  ${scope}/${options.name}`,
       `Client     registered in packages/oauth-clients`,
       `Origin     ${origin}  ·  ${originEnvName(options.name)} in .env`,
     ].join('\n'),

@@ -30,6 +30,18 @@ export function camelCase(value: string): string {
   return `${pascal[0]?.toLowerCase() ?? ''}${pascal.slice(1)}`
 }
 
+/**
+ * The npm scope a monorepo's own packages live under.
+ *
+ * It is the project's name rather than a fixed `@repo`, because the scope is
+ * the first thing a reader sees at every internal import. `@acme/database` says
+ * which product the table belongs to; `@repo/database` says only that someone
+ * generated it, and says the same thing in every repository on the machine.
+ */
+export function workspaceScope(projectName: string): string {
+  return `@${projectName}`
+}
+
 export function databaseName(projectName: string): string {
   return projectName.replaceAll('-', '_').slice(0, 63)
 }

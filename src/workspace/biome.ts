@@ -82,15 +82,199 @@ export const FRONTEND_PLUGINS = [
   'optimistic-write-shape.grit',
 ] as const
 
+/**
+ * The kinds of package a generated repository contains, and the root.
+ *
+ * `base` is the root, and the root is neither of the other two. It used to
+ * extend the backend package, which was a claim about the whole monorepo that
+ * was only true of half of it: the React applications underneath were being
+ * judged, wherever their own config did not reach, by rules written for NestJS.
+ */
+export type BiomeKind = 'backend' | 'base' | 'frontend'
+
 const CONFIG_PACKAGE = {
   backend: '@turystack/backend-config',
+  base: '@turystack/config',
   frontend: '@turystack/frontend-config',
 } as const
 
-const PLUGINS = {
+/**
+ * The baseline ships no GritQL plugin, and that is a consequence rather than an
+ * omission: a plugin path is read relative to the config that declares it, so a
+ * package that is only ever extended cannot carry one. The root needs none —
+ * every package that holds source declares a config of its own.
+ */
+const PLUGINS: Record<BiomeKind, readonly string[]> = {
   backend: BACKEND_PLUGINS,
+  base: [],
   frontend: FRONTEND_PLUGINS,
-} as const
+}
+
+/**
+ * JSON in the shape Biome's own formatter produces.
+ *
+ * The generated configs are the one part of a repository the formatting pass
+ * does not reach — it runs per package, and the root config belongs to no
+ * package. `JSON.stringify` expands every array, Biome keeps a short one on one
+ * line, and the difference is a `pnpm check` that fails on the very first run of
+ * a repository this CLI just created.
+ *
+ * Objects are always expanded, which is stable under Biome either way. Arrays
+ * follow the rule that is not: inline when the whole thing fits, expanded when
+ * it does not, or when a child is expanded itself. `biome.format.test.ts` runs
+ * Biome over the output and fails if it would change a byte.
+ */
+function printJson(value: unknown, indent = 0, lineWidth = 80): string {
+  const pad = ' '.repeat(indent)
+  const inner = ' '.repeat(indent + 2)
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return '[]'
+    }
+
+    const children = value.map((item) => printJson(item, indent + 2, lineWidth))
+    const inline = `[${children.join(', ')}]`
+
+    if (!inline.includes('\n') && indent + inline.length <= lineWidth) {
+      return inline
+    }
+
+    return `[\n${children.map((child) => `${inner}${child}`).join(',\n')}\n${pad}]`
+  }
+
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value)
+
+    if (entries.length === 0) {
+      return '{}'
+    }
+
+    const lines = entries.map(
+      ([key, item]) =>
+        `${inner}${JSON.stringify(key)}: ${printJson(item, indent + 2, lineWidth)}`,
+    )
+
+    return `{\n${lines.join(',\n')}\n${pad}}`
+  }
+
+  return JSON.stringify(value)
+}
+
+/**
+ * The import order, with the repository's own scope written into it.
+ *
+ * The shared config packages carry the same list under `@repo`, which is the
+ * scope a hand-written repository uses. A generated one is scoped by its own
+ * name — `@acme/database`, not `@repo/database` — and `groups` is an array,
+ * which `extends` replaces rather than merges. So the list is restated here
+ * with the real scope; `biome.test.ts` compares it against the config packages
+ * so the two cannot drift apart in shape while differing in scope.
+ */
+function importGroups(kind: BiomeKind, scope: string): unknown[] {
+  const shared = [
+    [
+      ':NODE:',
+    ],
+    ':BLANK_LINE:',
+    [
+      ':PACKAGE:',
+      '!@turystack/**',
+      `!${scope}/**`,
+    ],
+    ':BLANK_LINE:',
+    [
+      '@turystack/**',
+    ],
+    ':BLANK_LINE:',
+    [
+      `${scope}/**`,
+    ],
+    ':BLANK_LINE:',
+  ]
+
+  const local: Record<BiomeKind, unknown[]> = {
+    backend: [
+      [
+        '@/database/**',
+      ],
+      ':BLANK_LINE:',
+      [
+        '@/support/**',
+      ],
+      ':BLANK_LINE:',
+      [
+        '@/adapters/**',
+      ],
+      ':BLANK_LINE:',
+      [
+        '@/domains/**',
+      ],
+      ':BLANK_LINE:',
+      [
+        '@/controllers/**',
+      ],
+      ':BLANK_LINE:',
+      [
+        '@/exceptions',
+        '@/env.schema',
+      ],
+      ':BLANK_LINE:',
+    ],
+    base: [],
+    frontend: [
+      [
+        '#/**',
+      ],
+      ':BLANK_LINE:',
+    ],
+  }
+
+  return [
+    ...shared,
+    ...local[kind],
+    [
+      ':PATH:',
+    ],
+  ]
+}
+
+/**
+ * The persistence restriction, with the repository's own scope written into it.
+ *
+ * `ARC-LAY-3` says the delivery boundary calls a use case, never a table. The
+ * shared config states it for `@repo`, so in a repository scoped by its own
+ * name the rule matched no import at all — the gate was there, green, and
+ * inert.
+ */
+function scopedRestrictions(scope: string): unknown {
+  return {
+    includes: [
+      '**/src/controllers/**',
+    ],
+    linter: {
+      rules: {
+        style: {
+          noRestrictedImports: {
+            level: 'error',
+            options: {
+              patterns: [
+                {
+                  group: [
+                    `${scope}/database`,
+                    `${scope}/database/**`,
+                  ],
+                  message:
+                    'ARC-LAY-3: the delivery boundary does not import persistence directly.',
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  }
+}
 
 /**
  * Renders a Biome config for one package of the monorepo.
@@ -98,7 +282,8 @@ const PLUGINS = {
  * `nested` marks every config that is not the repository root. Biome 2 refuses
  * to start when it finds a configuration file inside another one's project
  * without `"root": false`, so the flag is what lets `apps/web` be linted by the
- * frontend rules while the root keeps the backend ones.
+ * frontend rules and `domains/iam` by the backend ones, under a root that
+ * claims neither.
  *
  * Every config is written as `biome.jsonc`, not `biome.json`. The comment
  * below is what stops someone from deleting the plugin list, and a comment in
@@ -107,38 +292,72 @@ const PLUGINS = {
  * none of these rules, and nothing said so.
  */
 export function renderBiomeConfig(options: {
-  kind: 'backend' | 'frontend'
+  kind: BiomeKind
   nested: boolean
+  scope: string
 }): string {
   const packageName = CONFIG_PACKAGE[options.kind]
-  const plugins = PLUGINS[options.kind]
-    .map((plugin) => `    "./node_modules/${packageName}/plugins/${plugin}"`)
-    .join(',\n')
+  const plugins = PLUGINS[options.kind].map(
+    (plugin) => `./node_modules/${packageName}/plugins/${plugin}`,
+  )
 
-  // The keys are emitted in the order Biome's own `useSortedKeys` wants, so the
-  // config it writes does not fail the check it configures.
-  return `{
-  "$schema": "${BIOME_SCHEMA}",
-  "extends": ["${packageName}/biome"],
-  "overrides": [
-    {
-      "assist": {
-        "actions": {
-          "source": {
-            "useSortedKeys": "off",
-            "useSortedProperties": "off"
-          }
-        }
+  // Sorted the way Biome's own `useSortedKeys` wants them, so the config it
+  // writes does not fail the check it configures.
+  const config = {
+    $schema: BIOME_SCHEMA,
+    assist: {
+      actions: {
+        source: {
+          organizeImports: {
+            level: 'on',
+            options: {
+              groups: importGroups(options.kind, options.scope),
+            },
+          },
+        },
       },
-      "includes": ["package.json"]
-    }
-  ],
+    },
+    extends: [
+      `${packageName}/biome`,
+    ],
+    overrides: [
+      {
+        assist: {
+          actions: {
+            source: {
+              useSortedKeys: 'off',
+              useSortedProperties: 'off',
+            },
+          },
+        },
+        includes: [
+          'package.json',
+        ],
+      },
+      ...(options.kind === 'backend'
+        ? [
+            scopedRestrictions(options.scope),
+          ]
+        : []),
+    ],
+    ...(plugins.length > 0
+      ? {
+          plugins,
+        }
+      : {}),
+    ...(options.nested
+      ? {
+          root: false,
+        }
+      : {}),
+  }
+
+  return `${printJson(config).replace(
+    '\n  "plugins": [',
+    `
   // A GritQL plugin path is read relative to the config that declares it, so it
   // does not travel through "extends". The list is repeated here on purpose;
   // dropping one silently turns off the gate that cites it.
-  "plugins": [
-${plugins}
-  ]${options.nested ? ',\n  "root": false' : ''}
-}
-`
+  "plugins": [`,
+  )}\n`
 }

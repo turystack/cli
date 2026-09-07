@@ -1,6 +1,10 @@
 import { renderBiomeConfig } from '../../../workspace/biome.js'
 import type { GeneratedFiles } from '../../../workspace/fs.js'
-import { databaseName, titleCase } from '../../../workspace/names.js'
+import {
+  databaseName,
+  titleCase,
+  workspaceScope,
+} from '../../../workspace/names.js'
 import { renderManifest, sortedRecord } from './tsconfig.js'
 
 // turystack-proof:pattern-data — this file emits a repository as source text.
@@ -107,8 +111,9 @@ node_modules
 *.tsbuildinfo
 `,
     'biome.jsonc': renderBiomeConfig({
-      kind: 'backend',
+      kind: 'base',
       nested: false,
+      scope: workspaceScope(context.project),
     }),
     'docker-compose.yml': `services:
   postgres:
@@ -162,7 +167,7 @@ volumes:
         // `tsc -b` first, in all three: a workspace package resolves through
         // its `dist`, and `tsc --noEmit` inside one package does not build the
         // packages it depends on. Without the build step a fresh clone fails
-        // on `@repo/exceptions` rather than on anything it wrote.
+        // on the repository's own `exceptions` package rather than on anything it wrote.
         test: 'tsc -b && pnpm -r --if-present run test',
         'test:coverage': 'tsc -b && pnpm -r --if-present run test:coverage',
         typecheck: 'tsc -b && pnpm -r --if-present run typecheck',
@@ -197,9 +202,16 @@ import someone has to notice.
 \`\`\`bash
 pnpm install
 pnpm docker:up
-pnpm db:generate && pnpm db:migrate
+pnpm build
+pnpm db:generate && pnpm db:migrate && pnpm db:seed
 pnpm dev
 \`\`\`
+
+\`pnpm build\` comes before the database steps because the API imports each
+domain by its package entry point, which is \`dist\`: on a repository nobody has
+built yet, the seed and \`pnpm dev\` both stop at the first import. The seed is
+what puts the roles and the permissions in the database — without it the first
+account to sign up gets a session that is allowed to do nothing.
 
 \`pnpm dev\` starts the API on \`:3000\` and the sign-in app on \`:3100\`.
 Add a product application with \`turystack add audience <name>\`, and it comes

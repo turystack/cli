@@ -1,11 +1,11 @@
 import type { GeneratedFiles } from '../../../workspace/fs.js'
-import { titleCase } from '../../../workspace/names.js'
+import { titleCase, workspaceScope } from '../../../workspace/names.js'
 import { renderManifest } from './tsconfig.js'
 
 // turystack-proof:pattern-data — this file emits a package as source text.
 
 /**
- * `@repo/ui` — the design, as one stylesheet for the whole repository.
+ * The `ui` package — the design, as one stylesheet for the whole repository.
  *
  * It has no build and no TypeScript: it is CSS, read by Tailwind in a web app
  * and by NativeWind in a mobile one, both of which resolve the same custom
@@ -13,16 +13,18 @@ import { renderManifest } from './tsconfig.js'
  * `UIX-19`'s sync check compare a pair instead of N.
  */
 export function generateUiFiles(project: string): GeneratedFiles {
+  const scope = workspaceScope(project)
+
   return {
     'package.json': renderManifest({
       exports: {
         './*.css': './*.css',
       },
-      name: '@repo/ui',
+      name: `${scope}/ui`,
       private: true,
       version: '0.0.0',
     }),
-    'README.md': `# @repo/ui
+    'README.md': `# ${scope}/ui
 
 The design applied over \`@turystack/react-web\` and
 \`@turystack/react-mobile\`, as one stylesheet.
@@ -34,7 +36,7 @@ ever is — no app is ever re-wired:
 /* apps/<app>/src/styles.css */
 @import 'tailwindcss';
 @import '@turystack/react-web/styles.css';
-@import '@repo/ui/theme.css';
+@import '${scope}/ui/theme.css';
 \`\`\`
 
 Override through the class each component publishes. A structural selector

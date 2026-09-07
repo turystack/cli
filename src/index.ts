@@ -29,6 +29,8 @@ import {
   runSkills,
   SkillsPromptCancelledError,
 } from './commands/skills/index.js'
+import { workspaceScope } from './workspace/names.js'
+import { readWorkspaceName, requireWorkspaceRoot } from './workspace/root.js'
 
 /**
  * Read from the manifest rather than written here.
@@ -50,7 +52,7 @@ Turystack builds monorepos, and only monorepos.
 Usage:
   turystack create <name> [options]        a repository that already signs people in
   turystack add audience <name> [options]  an API surface and the app that consumes it
-  turystack add domain <name> [options]    a domain package — @repo/<name>
+  turystack add domain <name> [options]    a domain package — @<project>/<name>
   turystack skills [options]
 
 What \`create\` produces:
@@ -82,6 +84,20 @@ Shared options:
 pnpm only: the workspace file is what the law detects a Turystack repository by,
 and four package managers would mean four untested layouts.
 `
+
+/**
+ * The scope of the repository the command is being run inside.
+ *
+ * `add` names the package it is about to write before it writes it, and the
+ * name depends on which repository this is. Resolving it here means the summary
+ * says `@acme/order` rather than a placeholder, and it means `add` refuses
+ * outside a monorepo one step earlier than it used to.
+ */
+async function currentScope(): Promise<string> {
+  const root = await requireWorkspaceRoot(process.cwd())
+
+  return workspaceScope(await readWorkspaceName(root))
+}
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
@@ -125,7 +141,7 @@ async function main(): Promise<void> {
       const parsed = parseAddAudienceArgs(args)
 
       await runAddAudience({
-        ...(await completeAddAudienceOptions(parsed)),
+        ...(await completeAddAudienceOptions(parsed, await currentScope())),
         cwd: process.cwd(),
       })
 
@@ -136,7 +152,7 @@ async function main(): Promise<void> {
       const parsed = parseAddDomainArgs(args)
 
       await runAddDomain({
-        ...(await completeAddDomainOptions(parsed)),
+        ...(await completeAddDomainOptions(parsed, await currentScope())),
         cwd: process.cwd(),
       })
 

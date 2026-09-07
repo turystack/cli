@@ -12,10 +12,10 @@
  * `useImportType` would otherwise make the import type-only and erase the
  * metadata the container reads.
  */
-export function renderRepositories(): Record<string, string> {
+export function renderRepositories(scope: string): Record<string, string> {
   return {
     'src/membership.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
+import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
 import type { MembershipRecord } from '@/iam.types.js'
@@ -82,7 +82,7 @@ export class MembershipRepository {
 }
 `,
     'src/organization.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
+import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
 import type { OrganizationRecord } from '@/iam.types.js'
@@ -143,7 +143,7 @@ export class OrganizationRepository {
 }
 `,
     'src/otp.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
+import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
 import type { OtpChannel, OtpPurpose, OtpRecord } from '@/iam.types.js'
@@ -212,7 +212,7 @@ export class OtpRepository {
 }
 `,
     'src/role.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
+import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
 import type { RoleKind, RoleRecord } from '@/iam.types.js'
@@ -312,7 +312,7 @@ export class RoleRepository {
 }
 `,
     'src/user.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
-import { DatabaseService } from '@repo/database'
+import { DatabaseService } from '${scope}/database'
 import { ClockService } from '@turystack/nestjs-context'
 import { uuidv7 } from 'uuidv7'
 

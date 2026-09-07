@@ -7,7 +7,7 @@
  * lives with the user, generating a code with the OTP, and slugifying a name
  * with the organization.
  */
-export function renderEntities(): Record<string, string> {
+export function renderEntities(scope: string): Record<string, string> {
   return {
     'src/iam.mock.ts': `import type {
   MembershipRecord,
@@ -79,7 +79,7 @@ export function mockOtp(overrides: Partial<OtpRecord> = {}): Otp {
   })
 }
 `,
-    'src/membership.entity.ts': `import { exceptions } from '@repo/exceptions'
+    'src/membership.entity.ts': `import { exceptions } from '${scope}/exceptions'
 import { Entity } from '@turystack/entity'
 
 import type { MembershipRecord } from '@/iam.types.js'
@@ -123,7 +123,7 @@ export class Membership {
   }
 }
 `,
-    'src/organization.entity.ts': `import { exceptions } from '@repo/exceptions'
+    'src/organization.entity.ts': `import { exceptions } from '${scope}/exceptions'
 import { Entity } from '@turystack/entity'
 
 import type { OrganizationRecord } from '@/iam.types.js'
@@ -242,7 +242,7 @@ export function verifyCode(code: string, stored: string): Promise<boolean> {
   return verifyPassword(code, stored)
 }
 `,
-    'src/otp.entity.ts': `import { exceptions } from '@repo/exceptions'
+    'src/otp.entity.ts': `import { exceptions } from '${scope}/exceptions'
 import { Entity } from '@turystack/entity'
 
 import type { OtpRecord } from '@/iam.types.js'
@@ -298,7 +298,7 @@ export class Otp {
   }
 }
 `,
-    'src/user.entity.ts': `import { exceptions } from '@repo/exceptions'
+    'src/user.entity.ts': `import { exceptions } from '${scope}/exceptions'
 import { Entity } from '@turystack/entity'
 
 import type { UserRecord } from '@/iam.types.js'
