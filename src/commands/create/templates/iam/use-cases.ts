@@ -15,7 +15,7 @@
  * workspace and the membership that ties them — and any three without the
  * fourth is an account that exists and does not work.
  */
-export function renderUseCases(scope: string): Record<string, string> {
+export function renderUseCases(): Record<string, string> {
   return {
     'src/use-cases/get-profile/get-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
 

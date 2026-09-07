@@ -119,7 +119,7 @@ code does not.
     ...renderContracts(scope),
     ...renderEntities(),
     ...renderRepositories(scope),
-    ...renderUseCases(scope),
+    ...renderUseCases(),
     'src/index.ts': `export type { IamExceptionCode } from '@/support/iam.exceptions.js'
 export { iamExceptions } from '@/support/iam.exceptions.js'
 export { IAM_PROVIDERS } from '@/support/iam.providers.js'
