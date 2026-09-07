@@ -155,15 +155,21 @@ function renderAuthController(scope: string): string {
   return `import { Body, Inject } from '@nestjs/common'
 import {
   RequestCode,
-  requestCodeSchema,
+  type RequestCodeInput,
   SignInWithCode,
-  signInWithCodeSchema,
+  type SignInWithCodeInput,
   SignInWithPassword,
-  signInWithPasswordSchema,
+  type SignInWithPasswordInput,
   SignInWithProvider,
   SignUp,
-  signUpSchema,
+  type SignUpInput,
 } from '${scope}/iam'
+import {
+  EmailSchema,
+  PasswordSchema,
+  PersonNameSchema,
+  RequiredStringSchema,
+} from '@turystack/fields'
 import { OAuthService } from '@turystack/nestjs-oauth'
 import { Controller, Route } from '@turystack/nestjs-server'
 import {
@@ -193,10 +199,52 @@ const withTransaction = z.object({
   tx: z.string().min(1),
 })
 
-const signInBody = signInWithPasswordSchema.extend(withTransaction.shape)
-const signUpBody = signUpSchema.extend(withTransaction.shape)
-const codeBody = signInWithCodeSchema.extend(withTransaction.shape)
-const requestCodeBody = requestCodeSchema
+/**
+ * What this surface accepts, declared here because this is where it arrives.
+ *
+ * The domain publishes the shape each operation takes as a type; a schema is
+ * how a boundary proves an untrusted body has that shape, and every boundary
+ * has its own — the API validates a request, the sign-in application validates
+ * a form.
+ */
+const signInBody = z
+  .object({
+    email: EmailSchema(),
+    password: z.string().min(1),
+  })
+  .extend(withTransaction.shape) satisfies z.ZodType<
+  SignInWithPasswordInput & z.infer<typeof withTransaction>
+>
+
+const signUpBody = z
+  .object({
+    email: EmailSchema(),
+    name: PersonNameSchema(),
+    organizationName: RequiredStringSchema({ max: 120 }),
+    password: PasswordSchema(),
+  })
+  .extend(withTransaction.shape) satisfies z.ZodType<
+  SignUpInput & z.infer<typeof withTransaction>
+>
+
+const codeBody = z
+  .object({
+    code: z.string().trim().length(6),
+    email: EmailSchema(),
+  })
+  .extend(withTransaction.shape) satisfies z.ZodType<
+  SignInWithCodeInput & z.infer<typeof withTransaction>
+>
+
+const requestCodeBody = z.object({
+  email: EmailSchema(),
+  purpose: z.enum([
+    'EMAIL_VERIFICATION',
+    'PASSWORD_RESET',
+    'SIGN_IN',
+  ]),
+}) satisfies z.ZodType<RequestCodeInput>
+
 const requestCodeResponse = z.object({
   sent: z.boolean(),
 })

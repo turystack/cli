@@ -26,7 +26,7 @@ import { RoleRepository } from '@/entities/role/index.js'
 import { UserRepository } from '@/entities/user/index.js'
 import { WorkspaceRepository } from '@/entities/workspace/index.js'
 import { iamExceptions } from '@/support/iam.exceptions.js'
-import type { GetProfileInput, Profile } from '@/use-cases/get-profile/get-profile.types.js'
+import type { GetProfileInput } from '@/use-cases/get-profile/get-profile.types.js'
 
 @Injectable()
 export class GetProfile {
@@ -43,7 +43,7 @@ export class GetProfile {
     private readonly roles: RoleRepository,
   ) {}
 
-  async execute(input: GetProfileInput): Promise<Profile> {
+  async execute(input: GetProfileInput) {
     const user = await this.users.find({
       userId: input.userId,
     })
@@ -121,60 +121,19 @@ export class GetProfile {
   }
 }
 `,
-    'src/use-cases/get-profile/get-profile.types.ts': `export type Profile = {
-  user: {
-    userId: string
-    name: string
-    email: string
-    emailVerified: boolean
-    phone: string | null
-    phoneVerified: boolean
-    locale: string
-  }
-  organization: {
-    organizationId: string
-    name: string
-    slug: string
-    workspaceMode: string
-    status: string
-  }
-  workspaces: {
-    workspaceId: string
-    name: string
-    slug: string
-    isDefault: boolean
-  }[]
-  role: {
-    roleId: string
-    key: string
-    name: string
-  } | null
-  permissions: string[]
-}
+    'src/use-cases/get-profile/get-profile.types.ts': `import type { Organization } from '@/entities/organization/index.js'
+import type { User } from '@/entities/user/index.js'
 
 export type GetProfileInput = {
-  organizationId: string
-  userId: string
+  organizationId: Organization['organizationId']
+  userId: User['userId']
 }
 `,
-    'src/use-cases/get-profile/index.ts': `export type { GetProfileInput, Profile } from '@/use-cases/get-profile/get-profile.types.js'
+    'src/use-cases/get-profile/index.ts': `export type { GetProfileInput } from '@/use-cases/get-profile/get-profile.types.js'
 export { GetProfile } from '@/use-cases/get-profile/get-profile.js'
 `,
     'src/use-cases/request-code/index.ts': `export type { RequestCodeInput } from '@/use-cases/request-code/request-code.types.js'
 export { RequestCode, CODE_TTL_MINUTES } from '@/use-cases/request-code/request-code.js'
-export { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
-`,
-    'src/use-cases/request-code/request-code.schema.ts': `import {
-  EmailSchema,
-} from '@turystack/fields'
-import { z } from 'zod'
-
-import { otpPurposeSchema } from '@/entities/otp/index.js'
-
-export const requestCodeSchema = z.object({
-  email: EmailSchema(),
-  purpose: otpPurposeSchema,
-})
 `,
     'src/use-cases/request-code/request-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
@@ -224,11 +183,13 @@ export class RequestCode {
   }
 }
 `,
-    'src/use-cases/request-code/request-code.types.ts': `import type { z } from 'zod'
+    'src/use-cases/request-code/request-code.types.ts': `import type { OtpPurpose } from '@/entities/otp/index.js'
+import type { User } from '@/entities/user/index.js'
 
-import { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
-
-export type RequestCodeInput = z.infer<typeof requestCodeSchema>
+export type RequestCodeInput = {
+  email: User['email']
+  purpose: OtpPurpose
+}
 `,
     'src/use-cases/resolve-profile/index.ts': `export { ResolveProfile } from '@/use-cases/resolve-profile/resolve-profile.js'
 `,
@@ -332,7 +293,7 @@ export class SeedIam {
   ) {}
 
   @Transactional()
-  async execute(): Promise<void> {
+  async execute() {
     await this.seedPlatform()
 
     const permissionIds = await this.seedPermissions()
@@ -434,24 +395,13 @@ export class SeedIam {
 `,
     'src/use-cases/sign-in-with-code/index.ts': `export type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/sign-in-with-code.types.js'
 export { SignInWithCode } from '@/use-cases/sign-in-with-code/sign-in-with-code.js'
-export { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
-`,
-    'src/use-cases/sign-in-with-code/sign-in-with-code.schema.ts': `import {
-  EmailSchema,
-} from '@turystack/fields'
-import { z } from 'zod'
-
-export const signInWithCodeSchema = z.object({
-  code: z.string().trim().length(6),
-  email: EmailSchema(),
-})
 `,
     'src/use-cases/sign-in-with-code/sign-in-with-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 
 import { OtpRepository } from '@/entities/otp/index.js'
-import { User, UserRepository } from '@/entities/user/index.js'
+import { UserRepository } from '@/entities/user/index.js'
 import { iamExceptions } from '@/support/iam.exceptions.js'
 import type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/sign-in-with-code.types.js'
 
@@ -467,7 +417,7 @@ export class SignInWithCode {
   ) {}
 
   @Transactional()
-  async execute(input: SignInWithCodeInput): Promise<User> {
+  async execute(input: SignInWithCodeInput) {
     const now = this.clock.now()
     const user = await this.users.findByEmail({
       email: input.email,
@@ -514,25 +464,15 @@ export class SignInWithCode {
   }
 }
 `,
-    'src/use-cases/sign-in-with-code/sign-in-with-code.types.ts': `import type { z } from 'zod'
+    'src/use-cases/sign-in-with-code/sign-in-with-code.types.ts': `import type { User } from '@/entities/user/index.js'
 
-import { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
-
-export type SignInWithCodeInput = z.infer<typeof signInWithCodeSchema>
+export type SignInWithCodeInput = {
+  code: string
+  email: User['email']
+}
 `,
     'src/use-cases/sign-in-with-password/index.ts': `export type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/sign-in-with-password.types.js'
 export { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
-export { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
-`,
-    'src/use-cases/sign-in-with-password/sign-in-with-password.schema.ts': `import {
-  EmailSchema,
-} from '@turystack/fields'
-import { z } from 'zod'
-
-export const signInWithPasswordSchema = z.object({
-  email: EmailSchema(),
-  password: z.string().min(1),
-})
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.test.ts': `import { describe, expect, it, vi } from 'vitest'
 
@@ -637,7 +577,7 @@ describe('SignInWithPassword', () => {
     'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
 
-import { User, UserRepository } from '@/entities/user/index.js'
+import { UserRepository } from '@/entities/user/index.js'
 import { iamExceptions } from '@/support/iam.exceptions.js'
 import type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/sign-in-with-password.types.js'
 
@@ -650,7 +590,7 @@ export class SignInWithPassword {
     private readonly clock: ClockService,
   ) {}
 
-  async execute(input: SignInWithPasswordInput): Promise<User> {
+  async execute(input: SignInWithPasswordInput) {
     const user = await this.users.findByEmail({
       email: input.email,
     })
@@ -676,11 +616,12 @@ export class SignInWithPassword {
   }
 }
 `,
-    'src/use-cases/sign-in-with-password/sign-in-with-password.types.ts': `import type { z } from 'zod'
+    'src/use-cases/sign-in-with-password/sign-in-with-password.types.ts': `import type { User } from '@/entities/user/index.js'
 
-import { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
-
-export type SignInWithPasswordInput = z.infer<typeof signInWithPasswordSchema>
+export type SignInWithPasswordInput = {
+  email: User['email']
+  password: string
+}
 `,
     'src/use-cases/sign-in-with-provider/index.ts': `export type { SignInWithProviderInput } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.types.js'
 export { SignInWithProvider } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.js'
@@ -716,7 +657,7 @@ export class SignInWithProvider {
   ) {}
 
   @Transactional()
-  async execute(profile: SignInWithProviderInput): Promise<User> {
+  async execute(profile: SignInWithProviderInput) {
     const linked = await this.users.findByProvider({
       profile,
     })
@@ -794,22 +735,6 @@ export type SignInWithProviderInput = SocialProfile
 `,
     'src/use-cases/sign-up/index.ts': `export type { SignUpInput } from '@/use-cases/sign-up/sign-up.types.js'
 export { SignUp } from '@/use-cases/sign-up/sign-up.js'
-export { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
-`,
-    'src/use-cases/sign-up/sign-up.schema.ts': `import {
-  EmailSchema,
-  PasswordSchema,
-  PersonNameSchema,
-  RequiredStringSchema,
-} from '@turystack/fields'
-import { z } from 'zod'
-
-export const signUpSchema = z.object({
-  email: EmailSchema(),
-  name: PersonNameSchema(),
-  organizationName: RequiredStringSchema({ max: 120 }),
-  password: PasswordSchema(),
-})
 `,
     'src/use-cases/sign-up/sign-up.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
@@ -844,7 +769,7 @@ export class SignUp {
   ) {}
 
   @Transactional()
-  async execute(input: SignUpInput): Promise<User> {
+  async execute(input: SignUpInput) {
     const existing = await this.users.findByEmail({
       email: input.email,
     })
@@ -912,11 +837,15 @@ export class SignUp {
   }
 }
 `,
-    'src/use-cases/sign-up/sign-up.types.ts': `import type { z } from 'zod'
+    'src/use-cases/sign-up/sign-up.types.ts': `import type { Organization } from '@/entities/organization/index.js'
+import type { User } from '@/entities/user/index.js'
 
-import { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
-
-export type SignUpInput = z.infer<typeof signUpSchema>
+export type SignUpInput = {
+  email: User['email']
+  name: User['name']
+  organizationName: Organization['name']
+  password: string
+}
 `,
     'src/use-cases/update-profile/index.ts': `export type { UpdateProfileInput } from '@/use-cases/update-profile/update-profile.types.js'
 export { UpdateProfile } from '@/use-cases/update-profile/update-profile.js'
@@ -933,8 +862,8 @@ export class UpdateProfile {
     private readonly users: UserRepository,
   ) {}
 
-  async execute(input: UpdateProfileInput): Promise<void> {
-    await this.users.update({
+  execute(input: UpdateProfileInput) {
+    return this.users.update({
       data: {
         ...(input.name === undefined
           ? {}
@@ -947,9 +876,11 @@ export class UpdateProfile {
   }
 }
 `,
-    'src/use-cases/update-profile/update-profile.types.ts': `export type UpdateProfileInput = {
-  name?: string
-  userId: string
+    'src/use-cases/update-profile/update-profile.types.ts': `import type { User } from '@/entities/user/index.js'
+
+export type UpdateProfileInput = {
+  name?: User['name']
+  userId: User['userId']
 }
 `,
   }

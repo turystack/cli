@@ -43,11 +43,6 @@ export function generateIamFiles(context: {
           import: './dist/index.js',
           types: './dist/index.d.ts',
         },
-        './contracts': {
-          default: './dist/support/iam.contracts.js',
-          import: './dist/support/iam.contracts.js',
-          types: './dist/support/iam.contracts.d.ts',
-        },
       },
       main: './dist/index.js',
       name: `${scope}/iam`,
@@ -130,28 +125,18 @@ export { iamExceptions } from '@/support/iam.exceptions.js'
 export { IAM_PROVIDERS } from '@/support/iam.providers.js'
 
 export { GetProfile } from '@/use-cases/get-profile/index.js'
-export type { GetProfileInput, Profile } from '@/use-cases/get-profile/index.js'
-export {
-  CODE_TTL_MINUTES,
-  RequestCode,
-  requestCodeSchema,
-} from '@/use-cases/request-code/index.js'
+export type { GetProfileInput } from '@/use-cases/get-profile/index.js'
+export { CODE_TTL_MINUTES, RequestCode } from '@/use-cases/request-code/index.js'
 export type { RequestCodeInput } from '@/use-cases/request-code/index.js'
 export { ResolveProfile } from '@/use-cases/resolve-profile/index.js'
 export { SeedIam } from '@/use-cases/seed-iam/index.js'
-export {
-  SignInWithCode,
-  signInWithCodeSchema,
-} from '@/use-cases/sign-in-with-code/index.js'
+export { SignInWithCode } from '@/use-cases/sign-in-with-code/index.js'
 export type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/index.js'
-export {
-  SignInWithPassword,
-  signInWithPasswordSchema,
-} from '@/use-cases/sign-in-with-password/index.js'
+export { SignInWithPassword } from '@/use-cases/sign-in-with-password/index.js'
 export type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/index.js'
 export { SignInWithProvider } from '@/use-cases/sign-in-with-provider/index.js'
 export type { SignInWithProviderInput } from '@/use-cases/sign-in-with-provider/index.js'
-export { SignUp, signUpSchema } from '@/use-cases/sign-up/index.js'
+export { SignUp } from '@/use-cases/sign-up/index.js'
 export type { SignUpInput } from '@/use-cases/sign-up/index.js'
 export { UpdateProfile } from '@/use-cases/update-profile/index.js'
 export type { UpdateProfileInput } from '@/use-cases/update-profile/index.js'

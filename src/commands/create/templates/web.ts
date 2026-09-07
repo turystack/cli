@@ -102,7 +102,8 @@ function renderSignInRoute(context: WebTemplateContext): string {
 
   return `import { zodResolver } from '@hookform/resolvers/zod'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
-import { signInWithPasswordSchema } from '${scope}/iam/contracts'
+import type { SignInWithPasswordInput } from '${scope}/iam'
+import { EmailSchema } from '@turystack/fields'
 import {
   Button,
   Card,
@@ -113,7 +114,7 @@ import {
   Typography,
 } from '@turystack/react-web'
 import { Controller, useForm } from 'react-hook-form'
-import type { z } from 'zod'
+import { z } from 'zod'
 
 import { signIn } from '@/api/auth'
 
@@ -124,14 +125,26 @@ export const Route = createFileRoute('/')({
   }),
 })
 
-type SignInValues = z.infer<typeof signInWithPasswordSchema>
+/**
+ * What this form collects, proved before it leaves the browser.
+ *
+ * The domain publishes the shape the operation takes; a schema is how a
+ * boundary proves an untrusted value has it, and this form is a boundary of its
+ * own — the API declares its own for the request that arrives there.
+ */
+const signInValues = z.object({
+  email: EmailSchema(),
+  password: z.string().min(1),
+}) satisfies z.ZodType<SignInWithPasswordInput>
+
+type SignInValues = z.infer<typeof signInValues>
 
 function SignInPage() {
   const { tx } = useSearch({
     from: '/',
   })
   const form = useForm<SignInValues>({
-    resolver: zodResolver(signInWithPasswordSchema),
+    resolver: zodResolver(signInValues),
   })
 
   async function onSubmit(values: SignInValues) {
@@ -207,10 +220,10 @@ function SignInPage() {
 function renderAuthApiClient(scope: string): string {
   return `import { z } from 'zod'
 
-import {
-  signUpSchema,
-  signInWithPasswordSchema,
-} from '${scope}/iam/contracts'
+import type {
+  SignInWithPasswordInput,
+  SignUpInput as SignUp,
+} from '${scope}/iam'
 
 const apiBaseUrl = z
   .string()
@@ -218,19 +231,19 @@ const apiBaseUrl = z
   .parse(import.meta.env.VITE_API_BASE_URL) as unknown as string
 
 /**
- * The sign-in calls, typed from the schemas the API validates against.
+ * The sign-in calls, typed from what the operations accept.
  *
- * The shapes are imported from \`${scope}/iam/contracts\` rather than written
- * here: one definition, two consumers, so a field added to the form and to the
- * route cannot disagree. The generated \`~sdk\` covers the rest of the surface;
- * these three exist before it does, because signing in is what produces the
- * session everything else needs.
+ * The domain publishes the shape of each operation; this file adds the
+ * transaction the authorization server issued, which belongs to the transport
+ * and not to the operation. The generated \`~sdk\` covers the rest of the
+ * surface; these three exist before it does, because signing in is what
+ * produces the session everything else needs.
  */
-type SignInInput = z.infer<typeof signInWithPasswordSchema> & {
+type SignInInput = SignInWithPasswordInput & {
   tx: string
 }
 
-type SignUpInput = z.infer<typeof signUpSchema> & {
+type SignUpInput = SignUp & {
   tx: string
 }
 
@@ -429,7 +442,7 @@ apps/<product>  →  POST /api/v1/auth/token   →  httpOnly cookies
 \`\`\`
 
 The contracts for sign-in and sign-up come from
-\`${scope}/iam/contracts\` — the same schemas the API validates against, so
+the types \`${scope}/iam\` publishes, so
 the form and the route cannot disagree.
 `
       : `# ${scope}/${context.name}

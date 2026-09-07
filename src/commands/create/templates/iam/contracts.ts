@@ -231,11 +231,6 @@ import type { createWorkspaceSchema } from '@/entities/workspace/workspace.schem
 
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>
 `,
-    'src/support/iam.contracts.ts': `export { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
-export { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
-export { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
-export { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
-`,
     'src/support/iam.exceptions.ts': `import {
   createExceptions,
   type InferExceptionCodes,

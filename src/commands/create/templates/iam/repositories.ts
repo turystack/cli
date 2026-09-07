@@ -459,8 +459,10 @@ export class UserRepository {
       passwordHash?: string
     }
     userId: string
-  }): Promise<void> {
-    await this.db.user.updateById(input.userId, input.data)
+  }) {
+    const row = await this.db.user.updateById(input.userId, input.data)
+
+    return new User(row as Row)
   }
 
   async linkProvider(input: {
