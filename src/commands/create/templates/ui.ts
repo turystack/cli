@@ -15,12 +15,12 @@ import { renderManifest } from './tsconfig.js'
 export function generateUiFiles(project: string): GeneratedFiles {
   return {
     'package.json': renderManifest({
-      name: '@repo/ui',
-      version: '0.0.0',
-      private: true,
       exports: {
         './*.css': './*.css',
       },
+      name: '@repo/ui',
+      private: true,
+      version: '0.0.0',
     }),
     'README.md': `# @repo/ui
 

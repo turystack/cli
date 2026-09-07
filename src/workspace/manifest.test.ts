@@ -67,9 +67,11 @@ describe('registerProject', () => {
       (reference) => reference.path,
     )
 
-    expect(paths).toEqual([
-      ...(paths ?? []),
-    ].sort())
+    expect(paths).toEqual(
+      [
+        ...(paths ?? []),
+      ].sort(),
+    )
   })
 
   it('never drops what was already registered', async () => {

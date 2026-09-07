@@ -112,9 +112,7 @@ export function renderBiomeConfig(options: {
 }): string {
   const packageName = CONFIG_PACKAGE[options.kind]
   const plugins = PLUGINS[options.kind]
-    .map(
-      (plugin) => `    "./node_modules/${packageName}/plugins/${plugin}"`,
-    )
+    .map((plugin) => `    "./node_modules/${packageName}/plugins/${plugin}"`)
     .join(',\n')
 
   // The keys are emitted in the order Biome's own `useSortedKeys` wants, so the

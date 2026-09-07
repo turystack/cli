@@ -8,19 +8,19 @@
 export function renderPackageTsconfig(): string {
   return `${JSON.stringify(
     {
-      extends: '@turystack/backend-config/tsconfig.api.json',
       compilerOptions: {
         declaration: true,
         declarationMap: true,
         outDir: './dist',
         rootDir: './src',
       },
-      include: [
-        'src/**/*.ts',
-      ],
       exclude: [
         'node_modules',
         'dist',
+      ],
+      extends: '@turystack/backend-config/tsconfig.api.json',
+      include: [
+        'src/**/*.ts',
       ],
     },
     null,
@@ -38,11 +38,11 @@ export function renderPackageTsconfig(): string {
 export function renderPackageBuildTsconfig(references: string[] = []): string {
   return `${JSON.stringify(
     {
-      extends: './tsconfig.json',
       compilerOptions: {
         composite: true,
         tsBuildInfoFile: './dist/.tsbuildinfo',
       },
+      extends: './tsconfig.json',
       ...(references.length > 0
         ? {
             references: references.map((path) => ({
@@ -73,7 +73,6 @@ export function renderPackageBuildTsconfig(references: string[] = []): string {
 export function renderWebTsconfig(): string {
   return `${JSON.stringify(
     {
-      extends: '@turystack/frontend-config/tsconfig.web.json',
       compilerOptions: {
         paths: {
           '@/*': [
@@ -81,6 +80,7 @@ export function renderWebTsconfig(): string {
           ],
         },
       },
+      extends: '@turystack/frontend-config/tsconfig.web.json',
       include: [
         'src',
         'vite.config.ts',

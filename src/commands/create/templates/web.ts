@@ -365,13 +365,13 @@ export default defineConfig({
 })
 `,
     'package.json': renderManifest({
-      name: `@repo/${context.name}`,
-      version: '0.0.0',
-      private: true,
-      type: 'module',
+      dependencies: sortedRecord(context.dependencies),
+      devDependencies: sortedRecord(context.devDependencies),
       engines: {
         node: '>=20',
       },
+      name: `@repo/${context.name}`,
+      private: true,
       scripts: {
         'api:generate': 'kubb generate',
         build: 'tsc --noEmit && vite build',
@@ -381,10 +381,10 @@ export default defineConfig({
         format: 'biome format --write .',
         lint: 'biome lint .',
         // `kubb generate` reads the OpenAPI document from the running API, so it
-      // cannot be part of `build` — a fresh clone has no API up, and the build
-      // would fail on a fetch rather than on the code. Regenerate the SDK
-      // deliberately with `pnpm api:generate` while the API is running.
-      prebuild: 'tsr generate',
+        // cannot be part of `build` — a fresh clone has no API up, and the build
+        // would fail on a fetch rather than on the code. Regenerate the SDK
+        // deliberately with `pnpm api:generate` while the API is running.
+        prebuild: 'tsr generate',
         predev: 'tsr generate',
         pretypecheck: 'tsr generate',
         'routes:generate': 'tsr generate',
@@ -392,8 +392,8 @@ export default defineConfig({
         'test:coverage': 'vitest run --coverage',
         typecheck: 'tsc --noEmit',
       },
-      dependencies: sortedRecord(context.dependencies),
-      devDependencies: sortedRecord(context.devDependencies),
+      type: 'module',
+      version: '0.0.0',
     }),
     'README.md': isAuth
       ? `# @repo/${context.name}
@@ -584,7 +584,8 @@ export default web({
 
   if (isAuth) {
     files['src/api/auth.ts'] = renderAuthApiClient()
-    files['src/api/auth.test.ts'] = `import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+    files['src/api/auth.test.ts'] =
+      `import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The three calls that exist before the generated SDK does.
@@ -686,7 +687,8 @@ describe('signIn', () => {
   }
 
   files['src/auth/.gitkeep'] = ''
-  files['src/routes/index.tsx'] = `import { createFileRoute } from '@tanstack/react-router'
+  files['src/routes/index.tsx'] =
+    `import { createFileRoute } from '@tanstack/react-router'
 
 import { Flex, Typography } from '@turystack/react-web'
 

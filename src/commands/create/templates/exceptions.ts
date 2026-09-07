@@ -21,24 +21,24 @@ export function generateExceptionsFiles(context: {
 }): GeneratedFiles {
   return {
     'package.json': renderManifest({
-      name: '@repo/exceptions',
-      version: '0.0.0',
-      private: true,
-      type: 'module',
+      dependencies: sortedRecord(context.dependencies),
+      devDependencies: sortedRecord(context.devDependencies),
       exports: {
         '.': {
-          types: './dist/index.d.ts',
-          import: './dist/index.js',
           default: './dist/index.js',
+          import: './dist/index.js',
+          types: './dist/index.d.ts',
         },
       },
       main: './dist/index.js',
-      types: './dist/index.d.ts',
+      name: '@repo/exceptions',
+      private: true,
       scripts: {
         typecheck: 'tsc --noEmit',
       },
-      dependencies: sortedRecord(context.dependencies),
-      devDependencies: sortedRecord(context.devDependencies),
+      type: 'module',
+      types: './dist/index.d.ts',
+      version: '0.0.0',
     }),
     'src/index.ts': `import {
   createExceptions,

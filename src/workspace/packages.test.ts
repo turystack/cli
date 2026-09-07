@@ -7,10 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { exists } from './fs.js'
 import { TURYSTACK_PACKAGES } from './turystack.js'
 
-const SOURCE_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../..',
-)
+const SOURCE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 
 /**
  * The table this CLI writes into a generated manifest, against the packages on
@@ -30,10 +27,7 @@ describe('TURYSTACK_PACKAGES', () => {
   it('maps every package to a directory that exists in the source root', async () => {
     const missing: string[] = []
 
-    for (const [
-      name,
-      entry,
-    ] of Object.entries(TURYSTACK_PACKAGES)) {
+    for (const [name, entry] of Object.entries(TURYSTACK_PACKAGES)) {
       const manifest = resolve(SOURCE_ROOT, entry.directory, 'package.json')
 
       if (!(await exists(manifest))) {
@@ -49,10 +43,7 @@ describe('TURYSTACK_PACKAGES', () => {
   it('declares the version each package actually carries', async () => {
     const drifted: string[] = []
 
-    for (const [
-      name,
-      entry,
-    ] of Object.entries(TURYSTACK_PACKAGES)) {
+    for (const [name, entry] of Object.entries(TURYSTACK_PACKAGES)) {
       const manifest = resolve(SOURCE_ROOT, entry.directory, 'package.json')
 
       if (!(await exists(manifest))) {

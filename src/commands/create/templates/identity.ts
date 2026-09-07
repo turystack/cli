@@ -22,15 +22,13 @@ export function generateIdentityFiles(context: {
 }): GeneratedFiles {
   return {
     'package.json': renderManifest({
-      name: '@repo/identity',
-      version: '0.0.0',
-      private: true,
-      type: 'module',
+      dependencies: sortedRecord(context.dependencies),
+      devDependencies: sortedRecord(context.devDependencies),
       exports: {
         '.': {
-          types: './dist/index.d.ts',
-          import: './dist/index.js',
           default: './dist/index.js',
+          import: './dist/index.js',
+          types: './dist/index.d.ts',
         },
         // Source, and zod only: the sign-in form in apps/auth validates against
         // the very schema the API validates against, without dragging NestJS
@@ -38,14 +36,16 @@ export function generateIdentityFiles(context: {
         './contracts': './src/identity.schema.ts',
       },
       main: './dist/index.js',
-      types: './dist/index.d.ts',
+      name: '@repo/identity',
+      private: true,
       scripts: {
         test: 'vitest run',
         'test:coverage': 'vitest run --coverage',
         typecheck: 'tsc --noEmit',
       },
-      dependencies: sortedRecord(context.dependencies),
-      devDependencies: sortedRecord(context.devDependencies),
+      type: 'module',
+      types: './dist/index.d.ts',
+      version: '0.0.0',
     }),
     'README.md': `# @repo/identity
 
@@ -77,195 +77,6 @@ invalidating the passwords already stored.
 
 \`passwordHash\` is nullable: an identity created through a social provider has
 no password, and inventing one would be a credential nobody set.
-`,
-    'src/index.ts': `export { Identity } from './identity.entity.js'
-export { IdentityRepository } from './identity.repository.js'
-export {
-  registerIdentitySchema,
-  signInWithPasswordSchema,
-} from './identity.schema.js'
-export type {
-  IdentityRecord,
-  RegisterIdentityInput,
-  SignInWithPasswordInput,
-  SocialProfile,
-} from './identity.types.js'
-
-export { RegisterIdentity } from './use-cases/register-identity/register-identity.js'
-export { ResolveProfile } from './use-cases/resolve-profile/resolve-profile.js'
-export { SignInWithPassword } from './use-cases/sign-in-with-password/sign-in-with-password.js'
-export { SignInWithProvider } from './use-cases/sign-in-with-provider/sign-in-with-provider.js'
-`,
-    'src/identity.schema.ts': `import { EmailSchema, PasswordSchema, PersonNameSchema } from '@turystack/fields'
-import { z } from 'zod'
-
-/**
- * The contracts, once — the API's request bodies and the forms in the auth
- * application are the same shape, because they are this shape.
- */
-export const registerIdentitySchema = z.object({
-  email: EmailSchema(),
-  name: PersonNameSchema(),
-  password: PasswordSchema(),
-})
-
-export const signInWithPasswordSchema = z.object({
-  email: EmailSchema(),
-  // Deliberately not PasswordSchema: signing in must accept a password that no
-  // longer satisfies today's policy. Refusing it here would lock out the very
-  // person the rule was tightened to protect.
-  password: z.string().min(1),
-})
-
-/**
- * A stored identity, as the schema describes it.
- *
- * The type is inferred rather than written beside it: two declarations of the
- * same row drift, and the one nobody validates against is the one that wins.
- */
-/** What a verified provider token yields — the shape social-auth returns. */
-export const socialProfileSchema = z.object({
-  email: z.string().nullable(),
-  id: z.string(),
-  name: z.string().nullable().optional(),
-  provider: z.string(),
-})
-
-export const identityRecordSchema = z.object({
-  createdAt: z.date(),
-  email: z.string(),
-  id: z.string(),
-  name: z.string().nullable(),
-  organizationId: z.string(),
-  passwordHash: z.string().nullable(),
-  updatedAt: z.date(),
-})
-`,
-    'src/identity.types.ts': `import type { z } from 'zod'
-
-import type {
-  identityRecordSchema,
-  registerIdentitySchema,
-  signInWithPasswordSchema,
-  socialProfileSchema,
-} from './identity.schema.js'
-
-export type RegisterIdentityInput = z.infer<typeof registerIdentitySchema>
-export type SignInWithPasswordInput = z.infer<typeof signInWithPasswordSchema>
-export type IdentityRecord = z.infer<typeof identityRecordSchema>
-export type SocialProfile = z.infer<typeof socialProfileSchema>
-`,
-    'src/password.ts': `import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
-import { promisify } from 'node:util'
-
-const derive = promisify(scrypt)
-
-const KEY_LENGTH = 64
-const SALT_BYTES = 16
-
-/**
- * The stored value carries its own salt and cost, as \`scrypt$N$salt$hash\`.
- *
- * Storing the parameters beside the hash is what lets the cost be raised later
- * without invalidating every password already stored: an old value still
- * verifies against the parameters it was created with.
- */
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(SALT_BYTES).toString('base64url')
-  const key = (await derive(password, salt, KEY_LENGTH)) as Buffer
-
-  return \`scrypt$\${KEY_LENGTH}$\${salt}$\${key.toString('base64url')}\`
-}
-
-/**
- * Whether the password matches, in constant time.
- *
- * A comparison that returns as soon as two bytes differ leaks, through timing,
- * how much of the value was right — which is the feedback an attacker needs.
- */
-export async function verifyPassword(
-  password: string,
-  stored: string | null,
-): Promise<boolean> {
-  if (!stored) {
-    return false
-  }
-
-  const [
-    algorithm,
-    length,
-    salt,
-    hash,
-  ] = stored.split('$')
-
-  if (algorithm !== 'scrypt' || !length || !salt || !hash) {
-    return false
-  }
-
-  const keyLength = Number.parseInt(length, 10)
-
-  if (!Number.isFinite(keyLength) || keyLength <= 0) {
-    return false
-  }
-
-  const expected = Buffer.from(hash, 'base64url')
-  const actual = (await derive(password, salt, keyLength)) as Buffer
-
-  return (
-    expected.length === actual.length && timingSafeEqual(expected, actual)
-  )
-}
-`,
-    'src/password.test.ts': `import { describe, expect, it } from 'vitest'
-
-import { hashPassword, verifyPassword } from './password.js'
-
-describe('hashPassword', () => {
-  it('never produces the same value twice for the same password', async () => {
-    const [first, second] = await Promise.all([
-      hashPassword('correct horse battery staple'),
-      hashPassword('correct horse battery staple'),
-    ])
-
-    expect(first).not.toBe(second)
-  })
-
-  it('stores the parameters beside the hash, so the cost can be raised later', async () => {
-    expect(await hashPassword('a-password')).toMatch(/^scrypt\\$64\\$[^$]+\\$/u)
-  })
-
-  it('does not contain the password', async () => {
-    expect(await hashPassword('a-password')).not.toContain('a-password')
-  })
-})
-
-describe('verifyPassword', () => {
-  it('accepts the password it was created from', async () => {
-    const stored = await hashPassword('a-password')
-
-    expect(await verifyPassword('a-password', stored)).toBe(true)
-  })
-
-  it('refuses a different password', async () => {
-    const stored = await hashPassword('a-password')
-
-    expect(await verifyPassword('another-password', stored)).toBe(false)
-  })
-
-  it('refuses when there is no password set, rather than letting anyone in', async () => {
-    expect(await verifyPassword('anything', null)).toBe(false)
-  })
-
-  it('refuses a stored value it cannot parse', async () => {
-    expect(await verifyPassword('a-password', 'garbage')).toBe(false)
-    expect(await verifyPassword('a-password', 'scrypt$64$only-three')).toBe(
-      false,
-    )
-    expect(await verifyPassword('a-password', 'bcrypt$64$salt$hash')).toBe(
-      false,
-    )
-  })
-})
 `,
     'src/identity.entity.ts': `import { Entity } from '@turystack/entity'
 
@@ -378,6 +189,195 @@ export class IdentityRepository {
   }
 }
 `,
+    'src/identity.schema.ts': `import { EmailSchema, PasswordSchema, PersonNameSchema } from '@turystack/fields'
+import { z } from 'zod'
+
+/**
+ * The contracts, once — the API's request bodies and the forms in the auth
+ * application are the same shape, because they are this shape.
+ */
+export const registerIdentitySchema = z.object({
+  email: EmailSchema(),
+  name: PersonNameSchema(),
+  password: PasswordSchema(),
+})
+
+export const signInWithPasswordSchema = z.object({
+  email: EmailSchema(),
+  // Deliberately not PasswordSchema: signing in must accept a password that no
+  // longer satisfies today's policy. Refusing it here would lock out the very
+  // person the rule was tightened to protect.
+  password: z.string().min(1),
+})
+
+/**
+ * A stored identity, as the schema describes it.
+ *
+ * The type is inferred rather than written beside it: two declarations of the
+ * same row drift, and the one nobody validates against is the one that wins.
+ */
+/** What a verified provider token yields — the shape social-auth returns. */
+export const socialProfileSchema = z.object({
+  email: z.string().nullable(),
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  provider: z.string(),
+})
+
+export const identityRecordSchema = z.object({
+  createdAt: z.date(),
+  email: z.string(),
+  id: z.string(),
+  name: z.string().nullable(),
+  organizationId: z.string(),
+  passwordHash: z.string().nullable(),
+  updatedAt: z.date(),
+})
+`,
+    'src/identity.types.ts': `import type { z } from 'zod'
+
+import type {
+  identityRecordSchema,
+  registerIdentitySchema,
+  signInWithPasswordSchema,
+  socialProfileSchema,
+} from './identity.schema.js'
+
+export type RegisterIdentityInput = z.infer<typeof registerIdentitySchema>
+export type SignInWithPasswordInput = z.infer<typeof signInWithPasswordSchema>
+export type IdentityRecord = z.infer<typeof identityRecordSchema>
+export type SocialProfile = z.infer<typeof socialProfileSchema>
+`,
+    'src/index.ts': `export { Identity } from './identity.entity.js'
+export { IdentityRepository } from './identity.repository.js'
+export {
+  registerIdentitySchema,
+  signInWithPasswordSchema,
+} from './identity.schema.js'
+export type {
+  IdentityRecord,
+  RegisterIdentityInput,
+  SignInWithPasswordInput,
+  SocialProfile,
+} from './identity.types.js'
+
+export { RegisterIdentity } from './use-cases/register-identity/register-identity.js'
+export { ResolveProfile } from './use-cases/resolve-profile/resolve-profile.js'
+export { SignInWithPassword } from './use-cases/sign-in-with-password/sign-in-with-password.js'
+export { SignInWithProvider } from './use-cases/sign-in-with-provider/sign-in-with-provider.js'
+`,
+    'src/password.test.ts': `import { describe, expect, it } from 'vitest'
+
+import { hashPassword, verifyPassword } from './password.js'
+
+describe('hashPassword', () => {
+  it('never produces the same value twice for the same password', async () => {
+    const [first, second] = await Promise.all([
+      hashPassword('correct horse battery staple'),
+      hashPassword('correct horse battery staple'),
+    ])
+
+    expect(first).not.toBe(second)
+  })
+
+  it('stores the parameters beside the hash, so the cost can be raised later', async () => {
+    expect(await hashPassword('a-password')).toMatch(/^scrypt\\$64\\$[^$]+\\$/u)
+  })
+
+  it('does not contain the password', async () => {
+    expect(await hashPassword('a-password')).not.toContain('a-password')
+  })
+})
+
+describe('verifyPassword', () => {
+  it('accepts the password it was created from', async () => {
+    const stored = await hashPassword('a-password')
+
+    expect(await verifyPassword('a-password', stored)).toBe(true)
+  })
+
+  it('refuses a different password', async () => {
+    const stored = await hashPassword('a-password')
+
+    expect(await verifyPassword('another-password', stored)).toBe(false)
+  })
+
+  it('refuses when there is no password set, rather than letting anyone in', async () => {
+    expect(await verifyPassword('anything', null)).toBe(false)
+  })
+
+  it('refuses a stored value it cannot parse', async () => {
+    expect(await verifyPassword('a-password', 'garbage')).toBe(false)
+    expect(await verifyPassword('a-password', 'scrypt$64$only-three')).toBe(
+      false,
+    )
+    expect(await verifyPassword('a-password', 'bcrypt$64$salt$hash')).toBe(
+      false,
+    )
+  })
+})
+`,
+    'src/password.ts': `import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
+import { promisify } from 'node:util'
+
+const derive = promisify(scrypt)
+
+const KEY_LENGTH = 64
+const SALT_BYTES = 16
+
+/**
+ * The stored value carries its own salt and cost, as \`scrypt$N$salt$hash\`.
+ *
+ * Storing the parameters beside the hash is what lets the cost be raised later
+ * without invalidating every password already stored: an old value still
+ * verifies against the parameters it was created with.
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(SALT_BYTES).toString('base64url')
+  const key = (await derive(password, salt, KEY_LENGTH)) as Buffer
+
+  return \`scrypt$\${KEY_LENGTH}$\${salt}$\${key.toString('base64url')}\`
+}
+
+/**
+ * Whether the password matches, in constant time.
+ *
+ * A comparison that returns as soon as two bytes differ leaks, through timing,
+ * how much of the value was right — which is the feedback an attacker needs.
+ */
+export async function verifyPassword(
+  password: string,
+  stored: string | null,
+): Promise<boolean> {
+  if (!stored) {
+    return false
+  }
+
+  const [
+    algorithm,
+    length,
+    salt,
+    hash,
+  ] = stored.split('$')
+
+  if (algorithm !== 'scrypt' || !length || !salt || !hash) {
+    return false
+  }
+
+  const keyLength = Number.parseInt(length, 10)
+
+  if (!Number.isFinite(keyLength) || keyLength <= 0) {
+    return false
+  }
+
+  const expected = Buffer.from(hash, 'base64url')
+  const actual = (await derive(password, salt, keyLength)) as Buffer
+
+  return (
+    expected.length === actual.length && timingSafeEqual(expected, actual)
+  )
+}
+`,
     'src/use-cases/register-identity/register-identity.ts': `import { Injectable } from '@nestjs/common'
 import { exceptions } from '@repo/exceptions'
 
@@ -407,33 +407,34 @@ export class RegisterIdentity {
   }
 }
 `,
-    'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Injectable } from '@nestjs/common'
-import { exceptions } from '@repo/exceptions'
+    'src/use-cases/resolve-profile/resolve-profile.ts': `import { Injectable } from '@nestjs/common'
+import type { IamProfile, IamProfileResolver } from '@turystack/nestjs-iam'
 
 import { IdentityRepository } from '../../identity.repository.js'
-import type { Identity } from '../../identity.entity.js'
-import type { SignInWithPasswordInput } from '../../identity.types.js'
 
+/**
+ * What IAM asks for on every authorized request: who this token belongs to, and
+ * what they may do.
+ *
+ * Roles and permissions start empty. They are a product decision — which roles
+ * exist, and what each one grants — and inventing a set here would be a
+ * permission model nobody chose, enforced from day one.
+ */
 @Injectable()
-export class SignInWithPassword {
+export class ResolveProfile implements IamProfileResolver {
   constructor(private readonly identities: IdentityRepository) {}
 
-  /**
-   * One refusal for every reason.
-   *
-   * A missing account, an account with no password and a wrong password all
-   * raise the same exception. Distinguishing them turns the sign-in form into
-   * an oracle that answers "does this email have an account here" to anyone who
-   * asks.
-   */
-  async execute(input: SignInWithPasswordInput): Promise<Identity> {
-    const identity = await this.identities.findByEmail(input.email)
+  async resolveProfile(userId: string): Promise<IamProfile | null> {
+    const identity = await this.identities.findById(userId)
 
-    if (!identity || !(await identity.verifyCredential(input.password))) {
-      throw new exceptions.identity.invalidCredentials()
+    if (!identity) {
+      return null
     }
 
-    return identity
+    return {
+      organizationId: identity.organizationId,
+      userId: identity.id,
+    }
   }
 }
 `,
@@ -547,6 +548,36 @@ describe('SignInWithPassword', () => {
   })
 })
 `,
+    'src/use-cases/sign-in-with-password/sign-in-with-password.ts': `import { Injectable } from '@nestjs/common'
+import { exceptions } from '@repo/exceptions'
+
+import { IdentityRepository } from '../../identity.repository.js'
+import type { Identity } from '../../identity.entity.js'
+import type { SignInWithPasswordInput } from '../../identity.types.js'
+
+@Injectable()
+export class SignInWithPassword {
+  constructor(private readonly identities: IdentityRepository) {}
+
+  /**
+   * One refusal for every reason.
+   *
+   * A missing account, an account with no password and a wrong password all
+   * raise the same exception. Distinguishing them turns the sign-in form into
+   * an oracle that answers "does this email have an account here" to anyone who
+   * asks.
+   */
+  async execute(input: SignInWithPasswordInput): Promise<Identity> {
+    const identity = await this.identities.findByEmail(input.email)
+
+    if (!identity || !(await identity.verifyCredential(input.password))) {
+      throw new exceptions.identity.invalidCredentials()
+    }
+
+    return identity
+  }
+}
+`,
     'src/use-cases/sign-in-with-provider/sign-in-with-provider.ts': `import { Injectable } from '@nestjs/common'
 
 import { IdentityRepository } from '../../identity.repository.js'
@@ -593,37 +624,6 @@ export class SignInWithProvider {
     await this.identities.linkProvider(created.id, profile)
 
     return created
-  }
-}
-`,
-    'src/use-cases/resolve-profile/resolve-profile.ts': `import { Injectable } from '@nestjs/common'
-import type { IamProfile, IamProfileResolver } from '@turystack/nestjs-iam'
-
-import { IdentityRepository } from '../../identity.repository.js'
-
-/**
- * What IAM asks for on every authorized request: who this token belongs to, and
- * what they may do.
- *
- * Roles and permissions start empty. They are a product decision — which roles
- * exist, and what each one grants — and inventing a set here would be a
- * permission model nobody chose, enforced from day one.
- */
-@Injectable()
-export class ResolveProfile implements IamProfileResolver {
-  constructor(private readonly identities: IdentityRepository) {}
-
-  async resolveProfile(userId: string): Promise<IamProfile | null> {
-    const identity = await this.identities.findById(userId)
-
-    if (!identity) {
-      return null
-    }
-
-    return {
-      organizationId: identity.organizationId,
-      userId: identity.id,
-    }
   }
 }
 `,

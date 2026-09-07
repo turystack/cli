@@ -30,10 +30,7 @@ export async function writeFiles(
   target: string,
   files: GeneratedFiles,
 ): Promise<void> {
-  for (const [
-    file,
-    contents,
-  ] of Object.entries(files)) {
+  for (const [file, contents] of Object.entries(files)) {
     const destination = resolve(target, file)
 
     await mkdir(dirname(destination), {
@@ -47,9 +44,6 @@ export async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, 'utf8')) as T
 }
 
-export async function writeJson(
-  path: string,
-  value: unknown,
-): Promise<void> {
+export async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }

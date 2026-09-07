@@ -1,5 +1,5 @@
-import type { GeneratedFiles } from '../../../workspace/fs.js'
 import { renderBiomeConfig } from '../../../workspace/biome.js'
+import type { GeneratedFiles } from '../../../workspace/fs.js'
 import { renderManifest, sortedRecord } from './tsconfig.js'
 
 // turystack-proof:pattern-data — this file emits a package as source text.
@@ -23,27 +23,36 @@ export function generateOAuthClientsFiles(context: {
   devDependencies: Record<string, string>
 }): GeneratedFiles {
   return {
+    // The package is dual — a data half and a React half — and Biome takes one
+    // config per package rather than one per folder. The frontend rules are
+    // the right ones here: `src/react` is browser code, and the backend gates
+    // it would otherwise inherit from the repository root read `Date.now()` in
+    // a session-expiry check as an ambient clock.
+    'biome.jsonc': renderBiomeConfig({
+      kind: 'frontend',
+      nested: true,
+    }),
     'package.json': renderManifest({
-      name: '@repo/oauth-clients',
-      version: '0.0.0',
-      private: true,
-      type: 'module',
+      dependencies: sortedRecord(context.dependencies),
+      devDependencies: sortedRecord(context.devDependencies),
       exports: {
         '.': {
-          types: './dist/index.d.ts',
-          import: './dist/index.js',
           default: './dist/index.js',
+          import: './dist/index.js',
+          types: './dist/index.d.ts',
         },
         // Source, not dist: a bundler compiles it, and the API never imports it.
         './react': './src/react/index.tsx',
       },
       main: './dist/index.js',
-      types: './dist/index.d.ts',
+      name: '@repo/oauth-clients',
+      private: true,
       scripts: {
         typecheck: 'tsc --noEmit && tsc --noEmit -p tsconfig.react.json',
       },
-      dependencies: sortedRecord(context.dependencies),
-      devDependencies: sortedRecord(context.devDependencies),
+      type: 'module',
+      types: './dist/index.d.ts',
+      version: '0.0.0',
     }),
     'README.md': `# @repo/oauth-clients
 
@@ -154,119 +163,6 @@ export function oauthClients(
   })
 }
 `,
-    'src/react/index.tsx': `export { AuthProvider } from './auth-provider.js'
-export { useSession } from './session-context.js'
-export type { Session } from './session.js'
-`,
-    'src/react/pkce.ts': `const VERIFIER_BYTES = 32
-
-function base64url(bytes: Uint8Array): string {
-  let binary = ''
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte)
-  }
-
-  return btoa(binary)
-    .replace(/\\+/gu, '-')
-    .replace(/\\//gu, '_')
-    .replace(/=+$/u, '')
-}
-
-export function createVerifier(): string {
-  return base64url(crypto.getRandomValues(new Uint8Array(VERIFIER_BYTES)))
-}
-
-export async function deriveChallenge(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(verifier),
-  )
-
-  return base64url(new Uint8Array(digest))
-}
-`,
-    'src/react/session.ts': `/**
- * What the page is allowed to know about the session.
- *
- * The tokens themselves are httpOnly cookies: unreadable here, and unreadable
- * by anything else that runs on this page. The only thing stored is when the
- * session stops being valid, which is enough to decide — synchronously, before
- * the first paint — whether to render the protected route or send the person to
- * sign in. That is what keeps a protected screen from flashing a login form.
- */
-export type Session = {
-  expiresAt: number
-}
-
-const KEY = 'session.expires'
-const VERIFIER_KEY = 'session.verifier'
-const RETURN_KEY = 'session.return-to'
-
-function safely<T>(read: () => T, fallback: T): T {
-  try {
-    return read()
-  } catch {
-    // A private window, blocked site data, or a browser that throws on access.
-    // A session we cannot remember is a sign-in, never a crash.
-    return fallback
-  }
-}
-
-export function readSession(): Session | null {
-  return safely(() => {
-    const raw = localStorage.getItem(KEY)
-
-    if (!raw) {
-      return null
-    }
-
-    const expiresAt = Number.parseInt(raw, 10)
-
-    return Number.isFinite(expiresAt) && expiresAt > Date.now()
-      ? {
-          expiresAt,
-        }
-      : null
-  }, null)
-}
-
-export function writeSession(session: Session): void {
-  safely(() => localStorage.setItem(KEY, String(session.expiresAt)), undefined)
-}
-
-export function clearSession(): void {
-  safely(() => localStorage.removeItem(KEY), undefined)
-}
-
-export function rememberVerifier(verifier: string, returnTo: string): void {
-  safely(() => {
-    sessionStorage.setItem(VERIFIER_KEY, verifier)
-    sessionStorage.setItem(RETURN_KEY, returnTo)
-  }, undefined)
-}
-
-export function takeVerifier(): {
-  returnTo: string
-  verifier: string | null
-} {
-  return safely(() => {
-    const verifier = sessionStorage.getItem(VERIFIER_KEY)
-    const returnTo = sessionStorage.getItem(RETURN_KEY) ?? '/'
-
-    sessionStorage.removeItem(VERIFIER_KEY)
-    sessionStorage.removeItem(RETURN_KEY)
-
-    return {
-      returnTo,
-      verifier,
-    }
-  }, {
-    returnTo: '/',
-    verifier: null,
-  })
-}
-`,
     'src/react/auth-client.ts': `import { CLIENTS } from '../clients.js'
 
 import { createVerifier, deriveChallenge } from './pkce.js'
@@ -372,34 +268,6 @@ export async function signOut(): Promise<void> {
     credentials: 'include',
     method: 'POST',
   })
-}
-`,
-    'src/react/session-context.ts': `import { createContext, use } from 'react'
-
-import type { Session } from './session.js'
-
-export type SessionContextValue = {
-  session: Session
-  signOut: () => Promise<void>
-}
-
-export const SessionContext = createContext<SessionContextValue | null>(null)
-
-/**
- * The session, inside a tree \`AuthProvider\` has already decided is signed in.
- *
- * It throws rather than returning null: below the provider the session always
- * exists, and a nullable value here would push a check into every consumer for
- * a state that cannot happen.
- */
-export function useSession(): SessionContextValue {
-  const value = use(SessionContext)
-
-  if (!value) {
-    throw new Error('useSession must be used inside <AuthProvider>')
-  }
-
-  return value
 }
 `,
     'src/react/auth-provider.tsx': `import { type ReactNode, useEffect, useState } from 'react'
@@ -582,9 +450,149 @@ export function AuthProvider({
   )
 }
 `,
+    'src/react/index.tsx': `export { AuthProvider } from './auth-provider.js'
+export { useSession } from './session-context.js'
+export type { Session } from './session.js'
+`,
+    'src/react/pkce.ts': `const VERIFIER_BYTES = 32
+
+function base64url(bytes: Uint8Array): string {
+  let binary = ''
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+
+  return btoa(binary)
+    .replace(/\\+/gu, '-')
+    .replace(/\\//gu, '_')
+    .replace(/=+$/u, '')
+}
+
+export function createVerifier(): string {
+  return base64url(crypto.getRandomValues(new Uint8Array(VERIFIER_BYTES)))
+}
+
+export async function deriveChallenge(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(verifier),
+  )
+
+  return base64url(new Uint8Array(digest))
+}
+`,
+    'src/react/session-context.ts': `import { createContext, use } from 'react'
+
+import type { Session } from './session.js'
+
+export type SessionContextValue = {
+  session: Session
+  signOut: () => Promise<void>
+}
+
+export const SessionContext = createContext<SessionContextValue | null>(null)
+
+/**
+ * The session, inside a tree \`AuthProvider\` has already decided is signed in.
+ *
+ * It throws rather than returning null: below the provider the session always
+ * exists, and a nullable value here would push a check into every consumer for
+ * a state that cannot happen.
+ */
+export function useSession(): SessionContextValue {
+  const value = use(SessionContext)
+
+  if (!value) {
+    throw new Error('useSession must be used inside <AuthProvider>')
+  }
+
+  return value
+}
+`,
+    'src/react/session.ts': `/**
+ * What the page is allowed to know about the session.
+ *
+ * The tokens themselves are httpOnly cookies: unreadable here, and unreadable
+ * by anything else that runs on this page. The only thing stored is when the
+ * session stops being valid, which is enough to decide — synchronously, before
+ * the first paint — whether to render the protected route or send the person to
+ * sign in. That is what keeps a protected screen from flashing a login form.
+ */
+export type Session = {
+  expiresAt: number
+}
+
+const KEY = 'session.expires'
+const VERIFIER_KEY = 'session.verifier'
+const RETURN_KEY = 'session.return-to'
+
+function safely<T>(read: () => T, fallback: T): T {
+  try {
+    return read()
+  } catch {
+    // A private window, blocked site data, or a browser that throws on access.
+    // A session we cannot remember is a sign-in, never a crash.
+    return fallback
+  }
+}
+
+export function readSession(): Session | null {
+  return safely(() => {
+    const raw = localStorage.getItem(KEY)
+
+    if (!raw) {
+      return null
+    }
+
+    const expiresAt = Number.parseInt(raw, 10)
+
+    return Number.isFinite(expiresAt) && expiresAt > Date.now()
+      ? {
+          expiresAt,
+        }
+      : null
+  }, null)
+}
+
+export function writeSession(session: Session): void {
+  safely(() => localStorage.setItem(KEY, String(session.expiresAt)), undefined)
+}
+
+export function clearSession(): void {
+  safely(() => localStorage.removeItem(KEY), undefined)
+}
+
+export function rememberVerifier(verifier: string, returnTo: string): void {
+  safely(() => {
+    sessionStorage.setItem(VERIFIER_KEY, verifier)
+    sessionStorage.setItem(RETURN_KEY, returnTo)
+  }, undefined)
+}
+
+export function takeVerifier(): {
+  returnTo: string
+  verifier: string | null
+} {
+  return safely(() => {
+    const verifier = sessionStorage.getItem(VERIFIER_KEY)
+    const returnTo = sessionStorage.getItem(RETURN_KEY) ?? '/'
+
+    sessionStorage.removeItem(VERIFIER_KEY)
+    sessionStorage.removeItem(RETURN_KEY)
+
+    return {
+      returnTo,
+      verifier,
+    }
+  }, {
+    returnTo: '/',
+    verifier: null,
+  })
+}
+`,
     'tsconfig.build.json': `${JSON.stringify(
       {
-        extends: './tsconfig.json',
         compilerOptions: {
           composite: true,
           tsBuildInfoFile: './dist/.tsbuildinfo',
@@ -595,42 +603,34 @@ export function AuthProvider({
           'src/react',
           '**/*.test.ts',
         ],
+        extends: './tsconfig.json',
       },
       null,
       2,
     )}\n`,
     'tsconfig.json': `${JSON.stringify(
       {
-        extends: '@turystack/backend-config/tsconfig.api.json',
         compilerOptions: {
           declaration: true,
           declarationMap: true,
           outDir: './dist',
           rootDir: './src',
         },
-        // The React half is excluded here and checked by tsconfig.react.json:
-        // it needs DOM types the API has no reason to carry.
-        include: [
-          'src/**/*.ts',
-        ],
         exclude: [
           'node_modules',
           'dist',
           'src/react',
         ],
+        extends: '@turystack/backend-config/tsconfig.api.json',
+        // The React half is excluded here and checked by tsconfig.react.json:
+        // it needs DOM types the API has no reason to carry.
+        include: [
+          'src/**/*.ts',
+        ],
       },
       null,
       2,
     )}\n`,
-    // The package is dual — a data half and a React half — and Biome takes one
-    // config per package rather than one per folder. The frontend rules are
-    // the right ones here: `src/react` is browser code, and the backend gates
-    // it would otherwise inherit from the repository root read `Date.now()` in
-    // a session-expiry check as an ambient clock.
-    'biome.jsonc': renderBiomeConfig({
-      kind: 'frontend',
-      nested: true,
-    }),
     'tsconfig.react.json': `${JSON.stringify(
       {
         extends: '@turystack/frontend-config/tsconfig.web.json',

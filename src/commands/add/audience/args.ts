@@ -18,9 +18,7 @@ function readValue(args: string[], flag: string): string | undefined {
   return value
 }
 
-export function parseAddAudienceArgs(
-  args: string[],
-): ParsedAddAudienceOptions {
+export function parseAddAudienceArgs(args: string[]): ParsedAddAudienceOptions {
   const positional = args[2]
   const name =
     positional && !positional.startsWith('--') ? positional : undefined

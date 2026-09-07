@@ -35,10 +35,7 @@ export async function appendEnvSections(
   root: string,
   sections: EnvSection[],
 ): Promise<void> {
-  for (const [
-    file,
-    pick,
-  ] of [
+  for (const [file, pick] of [
     [
       '.env',
       (section: EnvSection) => section.env,
@@ -58,8 +55,13 @@ export async function appendEnvSections(
       continue
     }
 
-    const separator = current.length > 0 && !current.endsWith('\n\n') ? '\n' : ''
+    const separator =
+      current.length > 0 && !current.endsWith('\n\n') ? '\n' : ''
 
-    await writeFile(path, `${current}${separator}${additions.join('\n')}`, 'utf8')
+    await writeFile(
+      path,
+      `${current}${separator}${additions.join('\n')}`,
+      'utf8',
+    )
   }
 }

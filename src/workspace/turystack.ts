@@ -57,7 +57,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/nestjs-database': {
     directory: 'nestjs-database',
-    version: '2.2.0',
+    version: '4.0.0',
   },
   '@turystack/nestjs-iam': {
     directory: 'nestjs-iam',

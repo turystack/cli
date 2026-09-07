@@ -104,12 +104,12 @@ export async function completeSkillsOptions(
             value: 'frontend-primitives',
           },
           {
-            hint: "materialized as <project>-spec — what this project does; yours to fill",
+            hint: 'materialized as <project>-spec — what this project does; yours to fill',
             label: 'Project spec (template)',
             value: 'spec',
           },
           {
-            hint: "materialized as <project>-uiux — tokens, copy and designs; yours to fill",
+            hint: 'materialized as <project>-uiux — tokens, copy and designs; yours to fill',
             label: 'Project UI/UX (template)',
             value: 'uiux',
           },

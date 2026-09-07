@@ -265,10 +265,7 @@ export async function runCreateWorkspace(
         ],
       ]
 
-      for (const [
-        directory,
-        files,
-      ] of tree) {
+      for (const [directory, files] of tree) {
         await writeFiles(at(directory), files)
       }
     },
@@ -299,10 +296,7 @@ export async function runCreateWorkspace(
       // Resolved per subtree rather than once per kind: whether a package can
       // reach its config is a fact about that package's `node_modules`, and
       // pnpm puts a dependency where it is declared.
-      for (const [
-        kind,
-        directories,
-      ] of [
+      for (const [kind, directories] of [
         [
           'backend',
           [

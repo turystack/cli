@@ -11,14 +11,9 @@ import {
 } from './biome.js'
 import { exists } from './fs.js'
 
-const SOURCE_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../..',
-)
+const SOURCE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 
-async function shippedPlugins(
-  configPackage: string,
-): Promise<string[] | null> {
+async function shippedPlugins(configPackage: string): Promise<string[] | null> {
   // The directory, not the config's own `plugins` array: a shared config no
   // longer declares one, because a path inside it is read relative to whatever
   // folder extends it and every consumer inherited paths it could not resolve.

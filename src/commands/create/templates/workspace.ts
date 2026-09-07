@@ -115,13 +115,12 @@ volumes:
   postgres_data:
 `,
     'package.json': renderManifest({
-      name: context.project,
-      version: '0.0.0',
-      private: true,
-      type: 'module',
+      devDependencies: sortedRecord(context.devDependencies),
       engines: {
         node: '>=20',
       },
+      name: context.project,
+      private: true,
       scripts: {
         // `tsc -b` walks the references in tsconfig.json, so it compiles every
         // package in dependency order and refuses a cycle between two domains.
@@ -148,7 +147,8 @@ volumes:
         'test:coverage': 'tsc -b && pnpm -r --if-present run test:coverage',
         typecheck: 'tsc -b && pnpm -r --if-present run typecheck',
       },
-      devDependencies: sortedRecord(context.devDependencies),
+      type: 'module',
+      version: '0.0.0',
     }),
     'pnpm-workspace.yaml': `packages:
   - apps/*

@@ -18,8 +18,8 @@ import {
   runAddDomain,
 } from './commands/add/domain/index.js'
 import {
-  completeCreateOptions,
   CreatePromptCancelledError,
+  completeCreateOptions,
   parseCreateArgs,
   runCreateWorkspace,
 } from './commands/create/index.js'
@@ -98,10 +98,7 @@ async function main(): Promise<void> {
     return
   }
 
-  const [
-    command,
-    subcommand,
-  ] = args
+  const [command, subcommand] = args
 
   if (command === 'skills') {
     const parsed = parseSkillsArgs(args)

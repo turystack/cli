@@ -29,26 +29,26 @@ export function generateDomainFiles(
   return {
     'package.json': `${JSON.stringify(
       {
-        name: `@repo/${name}`,
-        version: '0.0.0',
-        private: true,
-        type: 'module',
+        dependencies: sorted(context.dependencies),
+        devDependencies: sorted(context.devDependencies),
         exports: {
           '.': {
-            types: './dist/index.d.ts',
-            import: './dist/index.js',
             default: './dist/index.js',
+            import: './dist/index.js',
+            types: './dist/index.d.ts',
           },
         },
         main: './dist/index.js',
-        types: './dist/index.d.ts',
+        name: `@repo/${name}`,
+        private: true,
         scripts: {
           test: 'vitest run',
           'test:coverage': 'vitest run --coverage',
           typecheck: 'tsc --noEmit',
         },
-        dependencies: sorted(context.dependencies),
-        devDependencies: sorted(context.devDependencies),
+        type: 'module',
+        types: './dist/index.d.ts',
+        version: '0.0.0',
       },
       null,
       2,

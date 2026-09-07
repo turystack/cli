@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url'
 
 import { note, outro } from '@clack/prompts'
 
-import { formatDirectory, resolveBiomeConfig } from '../../../workspace/format.js'
+import {
+  formatDirectory,
+  resolveBiomeConfig,
+} from '../../../workspace/format.js'
 import { assertDirectoryAvailable, writeFiles } from '../../../workspace/fs.js'
 import { registerProject } from '../../../workspace/manifest.js'
 import { validateName } from '../../../workspace/names.js'

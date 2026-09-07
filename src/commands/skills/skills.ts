@@ -1,4 +1,11 @@
-import { access, cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import {
+  access,
+  cp,
+  mkdir,
+  readdir,
+  readFile,
+  writeFile,
+} from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { basename, dirname, resolve } from 'node:path'
 import process from 'node:process'
@@ -54,24 +61,6 @@ const SKILL_PACKAGE: Record<SkillId, SkillPackage> = {
     name: 'turystack-backend-pattern',
     packageName: '@turystack/backend-pattern',
   },
-  modeling: {
-    directory: 'modeling-skill',
-    kind: 'law',
-    name: 'turystack-modeling',
-    packageName: '@turystack/modeling',
-  },
-  harness: {
-    directory: 'harness-skill',
-    kind: 'law',
-    name: 'turystack-harness',
-    packageName: '@turystack/harness',
-  },
-  'proof-mode': {
-    directory: 'proof-mode-skill',
-    kind: 'law',
-    name: 'turystack-proof-mode',
-    packageName: '@turystack/proof-mode',
-  },
   frontend: {
     directory: 'frontend-pattern-skill',
     kind: 'law',
@@ -83,6 +72,24 @@ const SKILL_PACKAGE: Record<SkillId, SkillPackage> = {
     kind: 'law',
     name: 'turystack-frontend-primitives-pattern',
     packageName: '@turystack/frontend-primitives-pattern',
+  },
+  harness: {
+    directory: 'harness-skill',
+    kind: 'law',
+    name: 'turystack-harness',
+    packageName: '@turystack/harness',
+  },
+  modeling: {
+    directory: 'modeling-skill',
+    kind: 'law',
+    name: 'turystack-modeling',
+    packageName: '@turystack/modeling',
+  },
+  'proof-mode': {
+    directory: 'proof-mode-skill',
+    kind: 'law',
+    name: 'turystack-proof-mode',
+    packageName: '@turystack/proof-mode',
   },
   spec: {
     directory: 'spec-template-skill',
@@ -203,7 +210,11 @@ async function render(directory: string, project: string): Promise<void> {
 
     const contents = await readFile(path, 'utf8')
 
-    await writeFile(path, contents.replace(PROJECT_PLACEHOLDER, project), 'utf8')
+    await writeFile(
+      path,
+      contents.replace(PROJECT_PLACEHOLDER, project),
+      'utf8',
+    )
   }
 }
 
@@ -243,7 +254,9 @@ export async function resolveProjectName(
   try {
     const manifest = JSON.parse(
       await readFile(resolve(cwd, 'package.json'), 'utf8'),
-    ) as { name?: string }
+    ) as {
+      name?: string
+    }
 
     if (manifest.name) {
       // A scope names the project; the package after it names one app inside
@@ -292,12 +305,20 @@ async function writeManifest(
   // skill folders, and project state is not a skill.
   const path = resolve(cwd, AGENT_DIRECTORY[agent], '..', 'turystack.json')
   const existing = await readFile(path, 'utf8').catch(() => '{}')
-  const previous = JSON.parse(existing) as { skills?: Record<string, string> }
+  const previous = JSON.parse(existing) as {
+    skills?: Record<string, string>
+  }
 
   await writeFile(
     path,
     `${JSON.stringify(
-      { project, skills: { ...previous.skills, ...skills } },
+      {
+        project,
+        skills: {
+          ...previous.skills,
+          ...skills,
+        },
+      },
       null,
       2,
     )}\n`,

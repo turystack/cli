@@ -391,13 +391,13 @@ export function generateApiFiles(context: ApiTemplateContext): GeneratedFiles {
       nested: true,
     }),
     'package.json': renderManifest({
-      name: `@repo/${context.name}`,
-      version: '0.0.0',
-      private: true,
-      type: 'module',
+      dependencies: sortedRecord(context.dependencies),
+      devDependencies: sortedRecord(context.devDependencies),
       engines: {
         node: '>=20',
       },
+      name: `@repo/${context.name}`,
+      private: true,
       scripts: {
         build: 'tsc -b tsconfig.build.json && tsc-alias -p tsconfig.build.json',
         check: 'biome check .',
@@ -411,8 +411,8 @@ export function generateApiFiles(context: ApiTemplateContext): GeneratedFiles {
         'test:e2e': 'vitest run --config vitest.e2e.config.ts',
         typecheck: 'tsc --noEmit',
       },
-      dependencies: sortedRecord(context.dependencies),
-      devDependencies: sortedRecord(context.devDependencies),
+      type: 'module',
+      version: '0.0.0',
     }),
     'README.md': `# @repo/${context.name}
 
@@ -451,7 +451,6 @@ pnpm --filter ./apps/${context.name} dev
 \`\`\`
 `,
     'src/app.module.ts': renderAppModule(context),
-    'src/config.schema.ts': renderConfigSchema(context),
     'src/config.schema.test.ts': `import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
@@ -500,15 +499,22 @@ describe('configSchema', () => {
   })
 })
 `,
+    'src/config.schema.ts': renderConfigSchema(context),
     'src/controllers/auth/auth.controller.ts': renderAuthController(),
     'src/main.ts': renderMain(context),
     'tsconfig.build.json': `${JSON.stringify(
       {
-        extends: './tsconfig.json',
         compilerOptions: {
           composite: true,
           tsBuildInfoFile: './dist/.tsbuildinfo',
         },
+        exclude: [
+          'node_modules',
+          'dist',
+          '**/*.test.ts',
+          '**/*.e2e.test.ts',
+        ],
+        extends: './tsconfig.json',
         references: [
           '../../packages/exceptions/tsconfig.build.json',
           '../../packages/database/tsconfig.build.json',
@@ -517,19 +523,12 @@ describe('configSchema', () => {
         ].map((path) => ({
           path,
         })),
-        exclude: [
-          'node_modules',
-          'dist',
-          '**/*.test.ts',
-          '**/*.e2e.test.ts',
-        ],
       },
       null,
       2,
     )}\n`,
     'tsconfig.json': `${JSON.stringify(
       {
-        extends: '@turystack/backend-config/tsconfig.api.json',
         compilerOptions: {
           declaration: true,
           declarationMap: true,
@@ -541,12 +540,13 @@ describe('configSchema', () => {
           },
           rootDir: './src',
         },
-        include: [
-          'src/**/*.ts',
-        ],
         exclude: [
           'node_modules',
           'dist',
+        ],
+        extends: '@turystack/backend-config/tsconfig.api.json',
+        include: [
+          'src/**/*.ts',
         ],
       },
       null,
