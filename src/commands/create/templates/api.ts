@@ -620,15 +620,6 @@ import { z } from 'zod'
 
 import { configSchema } from './config.schema.js'
 
-/**
- * The environment contract, checked where it is cheap to check.
- *
- * The schema is the only thing standing between a missing variable and a
- * process that starts, serves traffic and fails on the first request that
- * needs it. These three cases are the ones that have actually reached
- * production somewhere: a secret pasted short, a port that is not whole, and
- * an environment that is simply complete.
- */
 const environment = z.object(configSchema)
 
 const complete = {
@@ -671,14 +662,6 @@ describe('configSchema', () => {
     'src/iam-domain.module.ts': `import { Global, Module } from '@nestjs/common'
 import { IAM_PROVIDERS } from '${scope}/iam'
 
-/**
- * The IAM domain, visible to every injector in the process.
- *
- * Global because \`IamModule\` builds the profile resolver in its own injector,
- * which sees global providers and nothing else — a resolver that reaches a
- * repository the application module owns cannot be constructed there, and the
- * failure arrives at boot as an unresolved parameter index.
- */
 @Global()
 @Module({
   exports: [
@@ -696,17 +679,6 @@ import { SeedIam } from '${scope}/iam'
 
 import { AppModule } from '@/app.module.js'
 
-/**
- * Brings the database in line with the catalogue in the source.
- *
- * It boots the application context without listening on a port: the seed needs
- * the same providers the API has — the database, the config, the repositories —
- * and building a second wiring for it is how the two drift.
- *
- * Idempotent, so it runs on every deploy. Until it has, \`OWNER\` does not
- * exist and signing up is refused rather than creating an organization whose
- * owner holds no permissions.
- */
 async function seed(): Promise<void> {
   const context = await NestFactory.createApplicationContext(AppModule, {
     logger: [

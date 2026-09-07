@@ -53,14 +53,6 @@ export function generateExceptionsFiles(context: {
   type InferExceptionCodes,
 } from '@turystack/exceptions'
 
-/**
- * The product's error catalogue — one catalogue, for every domain and app.
- *
- * The \`iam\` module exists because signing in already needs it. Everything a new
- * domain raises is added here, never inside the domain: one catalogue is what
- * lets a frontend map a code to a reason without keeping a second list in
- * agreement with this one.
- */
 export const exceptions = createExceptions((e) => ({
   iam: e.module('iam', {
     conflict: [

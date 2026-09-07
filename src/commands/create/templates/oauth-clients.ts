@@ -112,30 +112,26 @@ from configuration on whichever side is asking — \`window.location.origin\` in
 the browser, \`<CLIENT>_ORIGIN\` in the API. Hard-coding it here would make this
 file environment-specific, and it is the one file that must not be.
 `,
-    'src/clients.ts': `/**
- * Every application allowed to start a sign-in.
- *
- * \`turystack add audience <name>\` writes an entry here. The path is what is
- * registered; the origin comes from configuration, because a redirect target is
- * matched exactly and differs per environment.
- */
-export type OAuthClientConfig = {
-  /** Where the authorization server sends the browser back to. */
+    'src/clients.ts': `export type OAuthClientConfig = {
   callbackPath: string
   scopes: string[]
 }
 
-export const CLIENTS: Record<string, OAuthClientConfig> = {
+export const CLIENTS = {
 ${clients}
-}
+} satisfies Record<string, OAuthClientConfig>
 
 export type ClientId = keyof typeof CLIENTS
+
+export function findClient(id: string): OAuthClientConfig | undefined {
+  return (CLIENTS as Record<string, OAuthClientConfig | undefined>)[id]
+}
 `,
     'src/index.ts': `export type { ClientId, OAuthClientConfig } from '@/clients.js'
-export { CLIENTS } from '@/clients.js'
+export { CLIENTS, findClient } from '@/clients.js'
 export { clientRedirectUri, oauthClients } from '@/oauth-clients.js'
 `,
-    'src/oauth-clients.ts': `import { CLIENTS } from '@/clients.js'
+    'src/oauth-clients.ts': `import { CLIENTS, findClient } from '@/clients.js'
 
 /**
  * The absolute URL the authorization server must have registered.
@@ -148,7 +144,7 @@ export function clientRedirectUri(
   client: string,
   origin: string,
 ): string | null {
-  const config = CLIENTS[client]
+  const config = findClient(client)
 
   return config ? new URL(config.callbackPath, origin).toString() : null
 }
@@ -187,7 +183,7 @@ export function oauthClients(
   })
 }
 `,
-    'src/react/auth-client.ts': `import { CLIENTS } from '@/clients.js'
+    'src/react/auth-client.ts': `import { findClient } from '@/clients.js'
 
 import { createVerifier, deriveChallenge } from './pkce.js'
 import {
@@ -205,7 +201,7 @@ function endpoint(path: string): string {
 
 /** Sends the browser to the authorization server, which sends it to sign-in. */
 export async function beginSignIn(client: string): Promise<void> {
-  const config = CLIENTS[client]
+  const config = findClient(client)
 
   if (!config) {
     throw new Error(\`Unknown OAuth client: \${client}\`)
@@ -243,7 +239,7 @@ export async function completeSignIn(
   returnTo: string
   session: Session
 }> {
-  const config = CLIENTS[client]
+  const config = findClient(client)
 
   if (!config) {
     throw new Error(\`Unknown OAuth client: \${client}\`)
@@ -302,7 +298,7 @@ export async function signOut(): Promise<void> {
 `,
     'src/react/auth-provider.tsx': `import { type ReactNode, useEffect, useState } from 'react'
 
-import { CLIENTS } from '@/clients.js'
+import { type ClientId, findClient } from '@/clients.js'
 
 import {
   beginSignIn,
@@ -318,16 +314,8 @@ import {
   writeSession,
 } from './session.js'
 
-/** Renew this many milliseconds before the access token actually expires. */
 const RENEW_MARGIN = 60_000
 
-/**
- * One exchange per authorization code.
- *
- * The code is single-use and React runs an effect twice in development, so the
- * second attempt is refused — and the refusal is indistinguishable from a
- * failed sign-in, which sends a signed-in person back to sign in again.
- */
 const pendingExchanges = new Map<
   string,
   ReturnType<typeof completeSignIn>
@@ -346,16 +334,8 @@ type Phase =
       kind: 'signing-in'
     }
 
-/**
- * Decides, before the first paint, which of three states this load is in.
- *
- * Reading storage synchronously here — rather than in an effect — is the whole
- * anti-flash mechanism. An effect runs after the first render, so the app would
- * paint one frame of the wrong thing: the protected screen to someone signed
- * out, or the sign-in redirect to someone already signed in.
- */
-function resolvePhase(client: string): Phase {
-  const config = CLIENTS[client]
+function resolvePhase(client: ClientId): Phase {
+  const config = findClient(client)
   const url = new URL(window.location.href)
 
   if (config && url.pathname === config.callbackPath) {
@@ -394,8 +374,7 @@ export function AuthProvider({
   pending = null,
 }: {
   children: ReactNode
-  client: string
-  /** What renders while a redirect or a code exchange is in flight. */
+  client: ClientId
   pending?: ReactNode
 }) {
   const [
@@ -554,16 +533,7 @@ export function useSession(): SessionContextValue {
   return value
 }
 `,
-    'src/react/session.ts': `/**
- * What the page is allowed to know about the session.
- *
- * The tokens themselves are httpOnly cookies: unreadable here, and unreadable
- * by anything else that runs on this page. The only thing stored is when the
- * session stops being valid, which is enough to decide — synchronously, before
- * the first paint — whether to render the protected route or send the person to
- * sign in. That is what keeps a protected screen from flashing a login form.
- */
-export type Session = {
+    'src/react/session.ts': `export type Session = {
   expiresAt: number
 }
 
@@ -575,8 +545,6 @@ function safely<T>(read: () => T, fallback: T): T {
   try {
     return read()
   } catch {
-    // A private window, blocked site data, or a browser that throws on access.
-    // A session we cannot remember is a sign-in, never a crash.
     return fallback
   }
 }

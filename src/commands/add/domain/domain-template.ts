@@ -87,15 +87,7 @@ use case from its barrel. Never reach past the barrel into another domain's
 repository — and never create a cycle: \`tsc -b\` refuses one, which is the
 point of each domain being its own package.
 `,
-    'src/index.ts': `/**
- * The public surface of the ${titleCase(name)} domain.
- *
- * What crosses this file: the use cases, and the types and schemas another
- * domain or an app genuinely needs. What never crosses it: the repository, and
- * anything a caller would reach for only to skip a use case.
- */
-
-export {}
+    'src/index.ts': `export {}
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig([
       '../../packages/exceptions/tsconfig.build.json',

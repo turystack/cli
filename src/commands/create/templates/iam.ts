@@ -125,12 +125,7 @@ code does not.
     ...renderEntities(scope),
     ...renderRepositories(scope),
     ...renderUseCases(scope),
-    'src/index.ts': `export {
-  PERMISSIONS,
-  PLATFORM_ORGANIZATION_SLUG,
-  SYSTEM_ROLES,
-} from '@/support/iam.permissions.js'
-export { IAM_PROVIDERS } from '@/support/iam.providers.js'
+    'src/index.ts': `export { IAM_PROVIDERS } from '@/support/iam.providers.js'
 
 export { GetProfile } from '@/use-cases/get-profile/index.js'
 export type { GetProfileInput, Profile } from '@/use-cases/get-profile/index.js'
@@ -159,11 +154,11 @@ export type { SignUpInput } from '@/use-cases/sign-up/index.js'
 export { UpdateProfile } from '@/use-cases/update-profile/index.js'
 export type { UpdateProfileInput } from '@/use-cases/update-profile/index.js'
 `,
-    'src/support/iam.providers.ts': `import { MembershipRepository } from '@/entities/membership/membership.repository.js'
-import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
-import { OtpRepository } from '@/entities/otp/otp.repository.js'
-import { RoleRepository } from '@/entities/role/role.repository.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
+    'src/support/iam.providers.ts': `import { MembershipRepository } from '@/entities/membership/index.js'
+import { OrganizationRepository } from '@/entities/organization/index.js'
+import { OtpRepository } from '@/entities/otp/index.js'
+import { RoleRepository } from '@/entities/role/index.js'
+import { UserRepository } from '@/entities/user/index.js'
 import { GetProfile } from '@/use-cases/get-profile/index.js'
 import { RequestCode } from '@/use-cases/request-code/index.js'
 import { ResolveProfile } from '@/use-cases/resolve-profile/index.js'
@@ -174,21 +169,6 @@ import { SignInWithProvider } from '@/use-cases/sign-in-with-provider/index.js'
 import { SignUp } from '@/use-cases/sign-up/index.js'
 import { UpdateProfile } from '@/use-cases/update-profile/index.js'
 
-/**
- * Everything this domain provides, as one list.
- *
- * The API registers this rather than naming fourteen classes: a use case added
- * here and forgotten in the module is a provider Nest cannot resolve, and it
- * fails at boot with a message about a parameter index.
- *
- * The repositories are in the list because the operations need them injected;
- * they are not in the package's barrel, because nothing outside this package
- * may reach a table directly (\`ARC-LAY-4\`).
- *
- * It lives here rather than in \`index.ts\` because a barrel re-exports and
- * declares nothing (\`ARC-LAY-5\`) — a consumer importing one symbol from it
- * should not evaluate a list of fourteen classes to get it.
- */
 export const IAM_PROVIDERS = [
   GetProfile,
   MembershipRepository,

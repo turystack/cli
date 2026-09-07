@@ -467,12 +467,6 @@ pnpm --filter ./apps/${context.name} api:generate
     'src/~sdk/.gitkeep': '',
     'src/api/denial.ts': `import type { DataOutcomeConfig } from '@turystack/react-hooks'
 
-/**
- * Which error codes mean "you may not", answered once for the whole app.
- *
- * It starts empty on purpose: the codes belong to the API's own catalogue, and
- * inventing them here would be the hand-written contract \`ARC-CTR-1\` forbids.
- */
 const DENIAL_REASONS: Record<string, string> = {}
 
 function isException(error: unknown): error is { code: string } {

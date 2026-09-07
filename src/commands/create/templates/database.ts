@@ -127,13 +127,6 @@ import { databaseSchema } from './database.schema.js'
 
 export const tables = materializeSchema(databaseSchema(createSchemaBuilder()))
 
-/**
- * The same tables, one export each.
- *
- * drizzle-kit reads this file and looks only at its **top-level** exports, so a
- * table reachable through \`tables\` and nothing else is a table it never
- * migrates — and it does not complain: it reports \`0 tables\` and writes no SQL.
- */
 export const {
 ${IAM_TABLES.map((table) => `  ${table},`).join('\n')}
 } = tables
@@ -145,21 +138,6 @@ import {
   type InferDatabaseConfig,
 } from '@turystack/nestjs-database'
 
-/**
- * The identity and access model, and nothing else.
- *
- * Every table here is the one \`turystack-modeling\` › \`10-model-iam.md\` describes,
- * column for column and constraint for constraint. A difference between this
- * file and that one is a bug in whichever of the two moved.
- *
- * Columns are in the order \`ENT-5\` requires — PK, foreign keys, important, less
- * important, booleans, status, then timestamps and audit — and this file is
- * exempt from key sorting so that order survives the formatter.
- *
- * The keys are camel case because they are also the accessors a repository is
- * reached by (\`db.userSocialIdentity\`); the database sees snake case, for both
- * the table and its columns.
- */
 export const databaseSchema = defineDatabaseSchema((schema) => ({
   user: schema.table(
     {
@@ -572,15 +550,6 @@ declare module '@turystack/nestjs-database' {
 `,
     'src/index.ts': `export { tables } from './database.migration.js'
 export { databaseRelations, databaseSchema } from './database.schema.js'
-/**
- * The service, re-exported from the package that taught it the schema.
- *
- * \`DatabaseServiceRegistry\` is augmented in \`database.schema.ts\`, and a module
- * augmentation only applies to programs that contain the file declaring it.
- * Importing \`DatabaseService\` straight from \`@turystack/nestjs-database\` gets
- * the bare class — no \`db.users\`, no row types — so every consumer imports it
- * from here instead, and the schema comes with it.
- */
 export { DatabaseService } from '@turystack/nestjs-database'
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig(),

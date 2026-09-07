@@ -10,6 +10,12 @@
  */
 export function renderEntities(scope: string): Record<string, string> {
   return {
+    'src/entities/membership/index.ts': `export { Membership } from '@/entities/membership/membership.entity.js'
+export { mockMembership } from '@/entities/membership/membership.mock.js'
+export { MembershipRepository } from '@/entities/membership/membership.repository.js'
+export { membershipSchema, membershipStatusSchema } from '@/entities/membership/membership.schema.js'
+export type { MembershipStatus } from '@/entities/membership/membership.types.js'
+`,
     'src/entities/membership/membership.entity.ts': `import { exceptions } from '${scope}/exceptions'
 import { Entity } from '@turystack/entity'
 
@@ -80,6 +86,13 @@ export function mockMembership(
     ...overrides,
   })
 }
+`,
+    'src/entities/organization/index.ts': `export { Organization } from '@/entities/organization/organization.entity.js'
+export { mockOrganization } from '@/entities/organization/organization.mock.js'
+export { OrganizationRepository } from '@/entities/organization/organization.repository.js'
+export { organizationKindSchema, organizationSchema, organizationStatusSchema, workspaceModeSchema } from '@/entities/organization/organization.schema.js'
+export { slugify } from '@/entities/organization/organization.slug.js'
+export type { OrganizationKind, OrganizationStatus, WorkspaceMode } from '@/entities/organization/organization.types.js'
 `,
     'src/entities/organization/organization.entity.ts': `import { exceptions } from '${scope}/exceptions'
 import { Entity } from '@turystack/entity'
@@ -185,6 +198,13 @@ describe('slugify', () => {
   return slug === '' ? 'organization' : slug
 }
 `,
+    'src/entities/otp/index.ts': `export { CODE_LENGTH, generateCode, hashCode, verifyCode } from '@/entities/otp/otp.code.js'
+export { MAX_OTP_ATTEMPTS, Otp } from '@/entities/otp/otp.entity.js'
+export { mockOtp } from '@/entities/otp/otp.mock.js'
+export { OtpRepository } from '@/entities/otp/otp.repository.js'
+export { otpChannelSchema, otpPurposeSchema, otpSchema } from '@/entities/otp/otp.schema.js'
+export type { OtpChannel, OtpPurpose } from '@/entities/otp/otp.types.js'
+`,
     'src/entities/otp/otp.code.test.ts': `import { describe, expect, it } from 'vitest'
 
 import { CODE_LENGTH, generateCode, hashCode, verifyCode } from '@/entities/otp/otp.code.js'
@@ -211,7 +231,7 @@ describe('verifyCode', () => {
 `,
     'src/entities/otp/otp.code.ts': `import { randomInt } from 'node:crypto'
 
-import { hashPassword, verifyPassword } from '@/entities/user/user.password.js'
+import { hashPassword, verifyPassword } from '@/entities/user/index.js'
 
 export const CODE_LENGTH = 6
 
@@ -310,6 +330,20 @@ export function mockOtp(overrides: Partial<Row> = {}): Otp {
     ...overrides,
   })
 }
+`,
+    'src/entities/permission/index.ts': `export { audienceSchema, permissionSchema } from '@/entities/permission/permission.schema.js'
+export type { Audience, Permission } from '@/entities/permission/permission.types.js'
+`,
+    'src/entities/role/index.ts': `export { RoleRepository } from '@/entities/role/role.repository.js'
+export { roleKindSchema, roleSchema } from '@/entities/role/role.schema.js'
+export type { Role, RoleKind, RoleSeed } from '@/entities/role/role.types.js'
+`,
+    'src/entities/user/index.ts': `export { User } from '@/entities/user/user.entity.js'
+export { mockUser } from '@/entities/user/user.mock.js'
+export { hashPassword, verifyPassword } from '@/entities/user/user.password.js'
+export { UserRepository } from '@/entities/user/user.repository.js'
+export { socialProfileSchema, socialProviderSchema, userSchema } from '@/entities/user/user.schema.js'
+export type { SocialProfile, SocialProvider } from '@/entities/user/user.types.js'
 `,
     'src/entities/user/user.entity.ts': `import { exceptions } from '${scope}/exceptions'
 import { Entity } from '@turystack/entity'
@@ -477,13 +511,15 @@ export async function verifyPassword(
   const expected = Buffer.from(key, 'hex')
   const actual = await derive(password, Buffer.from(salt, 'hex'), KEY_LENGTH)
 
-  // timingSafeEqual throws on a length mismatch, and that throw is a signal about the stored value.
   if (expected.length !== actual.length) {
     return false
   }
 
   return timingSafeEqual(expected, actual)
 }
+`,
+    'src/entities/workspace/index.ts': `export { createWorkspaceSchema, workspaceSchema } from '@/entities/workspace/workspace.schema.js'
+export type { CreateWorkspaceInput, Workspace } from '@/entities/workspace/workspace.types.js'
 `,
   }
 }

@@ -21,8 +21,6 @@ export function renderContracts(): Record<string, string> {
   return {
     'src/entities/membership/membership.schema.ts': `import { z } from 'zod'
 
-/** What ties a person to an organization, and to a workspace inside it. */
-
 export const membershipStatusSchema = z.enum([
   'ACTIVE',
   'SUSPENDED',
@@ -47,22 +45,6 @@ export type MembershipStatus = z.infer<typeof membershipStatusSchema>
 `,
     'src/entities/organization/organization.schema.ts': `import { z } from 'zod'
 
-/**
- * The customer, and the closed sets that describe it.
- *
- * Every closed set is a Zod enum and a \`text\` column: a database enum can only
- * be changed by DDL, which couples the deploy that introduces a value to a
- * migration that lands at a different moment.
- */
-
-/**
- * The contracts, once — the API's request bodies and the forms in the auth
- * application are the same shape, because they are this shape.
- *
- * Every closed set is a Zod enum and a \`text\` column: a database enum can only
- * be changed by DDL, which couples the deploy that introduces a value to a
- * migration that lands at a different moment.
- */
 export const organizationKindSchema = z.enum([
   'CUSTOMER',
   'PLATFORM',
@@ -101,8 +83,6 @@ export type WorkspaceMode = z.infer<typeof workspaceModeSchema>
 `,
     'src/entities/otp/otp.schema.ts': `import { z } from 'zod'
 
-/** A one-time code: what it is for, where it went, and when it stops working. */
-
 export const otpPurposeSchema = z.enum([
   'EMAIL_VERIFICATION',
   'PASSWORD_RESET',
@@ -138,8 +118,6 @@ export type OtpPurpose = z.infer<typeof otpPurposeSchema>
 `,
     'src/entities/permission/permission.schema.ts': `import { z } from 'zod'
 
-/** A permission, and the audience whose prefix it carries. */
-
 export const audienceSchema = z.enum([
   'AUTH',
   'ADMIN',
@@ -164,8 +142,6 @@ export type Audience = z.infer<typeof audienceSchema>
 export type Permission = z.infer<typeof permissionSchema>
 `,
     'src/entities/role/role.schema.ts': `import { z } from 'zod'
-
-/** A role: a named set of permissions, held inside one organization or by the platform. */
 
 export const roleKindSchema = z.enum([
   'ENVIRONMENT',
@@ -192,7 +168,6 @@ import type {
 export type RoleKind = z.infer<typeof roleKindSchema>
 export type Role = z.infer<typeof roleSchema>
 
-/** A role as the catalogue seeds it, before it has an id. */
 export type RoleSeed = {
   key: string
   kind: RoleKind
@@ -203,14 +178,6 @@ export type RoleSeed = {
 `,
     'src/entities/user/user.schema.ts': `import { z } from 'zod'
 
-/**
- * The person, and the provider accounts that stand for them.
- *
- * The row is declared once and inferred where it is needed, rather than written
- * a second time as a type: two declarations of the same row drift, and the one
- * nobody validates against is the one that wins.
- */
-
 export const socialProviderSchema = z.enum([
   'APPLE',
   'FACEBOOK',
@@ -218,7 +185,6 @@ export const socialProviderSchema = z.enum([
   'MICROSOFT',
 ])
 
-/** What a verified provider token yields — the shape social-auth returns. */
 export const socialProfileSchema = z.object({
   email: z.string().nullable(),
   id: z.string(),
@@ -254,8 +220,6 @@ export type SocialProfile = z.infer<typeof socialProfileSchema>
 } from '@turystack/fields'
 import { z } from 'zod'
 
-/** A workspace: where an organization that has more than one keeps its work apart. */
-
 export const workspaceSchema = z.object({
   workspaceId: z.string(),
   organizationId: z.string(),
@@ -278,34 +242,14 @@ import type {
 export type Workspace = z.infer<typeof workspaceSchema>
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>
 `,
-    'src/support/iam.contracts.ts': `/**
- * The shapes a client validates against, in one place.
- *
- * Each one lives with the operation that consumes it; this file is the surface
- * the package publishes as \`./contracts\`, so the form in the sign-in
- * application and the route that receives it are one declaration rather than
- * two that happen to agree.
- */
-export { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
+    'src/support/iam.contracts.ts': `export { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
 export { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
 export { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
 export { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
 `,
-    'src/support/iam.permissions.ts': `import type { Audience } from '@/entities/permission/permission.types.js'
-import type { RoleSeed } from '@/entities/role/role.types.js'
+    'src/support/iam.permissions.ts': `import type { Audience } from '@/entities/permission/index.js'
+import type { RoleSeed } from '@/entities/role/index.js'
 
-/**
- * The permission catalogue, and the roles that hold it.
- *
- * The code is the source and the table is the mirror: a permission nobody
- * deployed is a permission nobody implements. The seed inserts what is missing
- * and reports what the table holds and the code does not — that report matters,
- * because a permission that disappeared while roles still grant it means people
- * hold access to something that no longer exists.
- *
- * The audience prefix is part of the key, not a column beside it. It is what
- * keeps an admin permission from ever satisfying a backoffice check.
- */
 export type PermissionSeed = {
   audience: Audience
   description: string
@@ -383,14 +327,6 @@ const BACKOFFICE_KEYS = PERMISSIONS.filter(
   (permission) => permission.audience === 'BACKOFFICE',
 ).map((permission) => permission.key)
 
-/**
- * The roles the product ships.
- *
- * \`ENVIRONMENT\` roles are offered to every organization and cannot be edited by
- * one. \`BACKOFFICE\` is the platform's own, and it is the only kind allowed to
- * hold a \`backoffice:\` permission — checked here at seed time and again when a
- * role is written.
- */
 export const SYSTEM_ROLES: RoleSeed[] = [
   {
     description: 'Full access to the organization, including its members.',
@@ -422,10 +358,8 @@ export const SYSTEM_ROLES: RoleSeed[] = [
   },
 ]
 
-/** The slug of the one organization the operators belong to. */
 export const PLATFORM_ORGANIZATION_SLUG = 'platform'
 
-/** The role a person who signs themselves up receives in their organization. */
 export const FOUNDER_ROLE_KEY = 'OWNER'
 `,
   }

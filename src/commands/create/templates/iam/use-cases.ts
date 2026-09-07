@@ -22,10 +22,10 @@ export function renderUseCases(scope: string): Record<string, string> {
 import { DatabaseService } from '${scope}/database'
 import { exceptions } from '${scope}/exceptions'
 
-import { MembershipRepository } from '@/entities/membership/membership.repository.js'
-import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
-import { RoleRepository } from '@/entities/role/role.repository.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
+import { MembershipRepository } from '@/entities/membership/index.js'
+import { OrganizationRepository } from '@/entities/organization/index.js'
+import { RoleRepository } from '@/entities/role/index.js'
+import { UserRepository } from '@/entities/user/index.js'
 import type { GetProfileInput, Profile } from '@/use-cases/get-profile/get-profile.types.js'
 
 @Injectable()
@@ -170,7 +170,7 @@ export { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.
 } from '@turystack/fields'
 import { z } from 'zod'
 
-import { otpPurposeSchema } from '@/entities/otp/otp.schema.js'
+import { otpPurposeSchema } from '@/entities/otp/index.js'
 
 export const requestCodeSchema = z.object({
   email: EmailSchema(),
@@ -180,9 +180,8 @@ export const requestCodeSchema = z.object({
     'src/use-cases/request-code/request-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
 
-import { generateCode, hashCode } from '@/entities/otp/otp.code.js'
-import { OtpRepository } from '@/entities/otp/otp.repository.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
+import { OtpRepository, generateCode, hashCode } from '@/entities/otp/index.js'
+import { UserRepository } from '@/entities/user/index.js'
 import type { RequestCodeInput } from '@/use-cases/request-code/request-code.types.js'
 
 export const CODE_TTL_MINUTES = 10
@@ -237,8 +236,8 @@ export type RequestCodeInput = z.infer<typeof requestCodeSchema>
     'src/use-cases/resolve-profile/resolve-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
 import type { IamProfile, IamProfileResolver, IamRole } from '@turystack/nestjs-iam'
 
-import { MembershipRepository } from '@/entities/membership/membership.repository.js'
-import { RoleRepository } from '@/entities/role/role.repository.js'
+import { MembershipRepository } from '@/entities/membership/index.js'
+import { RoleRepository } from '@/entities/role/index.js'
 
 @Injectable()
 export class ResolveProfile implements IamProfileResolver {
@@ -310,9 +309,9 @@ import { DatabaseService } from '${scope}/database'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
 
-import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
-import { RoleRepository } from '@/entities/role/role.repository.js'
-import type { RoleSeed } from '@/entities/role/role.types.js'
+import { OrganizationRepository } from '@/entities/organization/index.js'
+import type { RoleSeed } from '@/entities/role/index.js'
+import { RoleRepository } from '@/entities/role/index.js'
 import { PERMISSIONS, PLATFORM_ORGANIZATION_SLUG, SYSTEM_ROLES } from '@/support/iam.permissions.js'
 
 @Injectable()
@@ -450,9 +449,8 @@ import { exceptions } from '${scope}/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 
-import { OtpRepository } from '@/entities/otp/otp.repository.js'
-import { User } from '@/entities/user/user.entity.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
+import { OtpRepository } from '@/entities/otp/index.js'
+import { User, UserRepository } from '@/entities/user/index.js'
 import type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/sign-in-with-code.types.js'
 
 @Injectable()
@@ -536,9 +534,7 @@ export const signInWithPasswordSchema = z.object({
 `,
     'src/use-cases/sign-in-with-password/sign-in-with-password.test.ts': `import { describe, expect, it, vi } from 'vitest'
 
-import { mockUser } from '@/entities/user/user.mock.js'
-import { hashPassword } from '@/entities/user/user.password.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
+import { UserRepository, hashPassword, mockUser } from '@/entities/user/index.js'
 import { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
 
 const clock = {
@@ -640,8 +636,7 @@ describe('SignInWithPassword', () => {
 import { exceptions } from '${scope}/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 
-import { User } from '@/entities/user/user.entity.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
+import { User, UserRepository } from '@/entities/user/index.js'
 import type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/sign-in-with-password.types.js'
 
 @Injectable()
@@ -694,13 +689,11 @@ import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
 
-import { MembershipRepository } from '@/entities/membership/membership.repository.js'
-import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
-import { slugify } from '@/entities/organization/organization.slug.js'
-import { RoleRepository } from '@/entities/role/role.repository.js'
-import { User } from '@/entities/user/user.entity.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
-import type { SocialProfile } from '@/entities/user/user.types.js'
+import { MembershipRepository } from '@/entities/membership/index.js'
+import { OrganizationRepository, slugify } from '@/entities/organization/index.js'
+import { RoleRepository } from '@/entities/role/index.js'
+import type { SocialProfile } from '@/entities/user/index.js'
+import { User, UserRepository } from '@/entities/user/index.js'
 import { FOUNDER_ROLE_KEY } from '@/support/iam.permissions.js'
 import type { SignInWithProviderInput } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.types.js'
 
@@ -795,14 +788,8 @@ export class SignInWithProvider {
   }
 }
 `,
-    'src/use-cases/sign-in-with-provider/sign-in-with-provider.types.ts': `import type { SocialProfile } from '@/entities/user/user.types.js'
+    'src/use-cases/sign-in-with-provider/sign-in-with-provider.types.ts': `import type { SocialProfile } from '@/entities/user/index.js'
 
-/**
- * What the operation accepts: a profile a provider's token already proved.
- *
- * Verifying the token belongs to the social-auth library; by the time this
- * operation runs, the question is which person the profile is.
- */
 export type SignInWithProviderInput = SocialProfile
 `,
     'src/use-cases/sign-up/index.ts': `export type { SignUpInput } from '@/use-cases/sign-up/sign-up.types.js'
@@ -831,13 +818,10 @@ import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
 
-import { MembershipRepository } from '@/entities/membership/membership.repository.js'
-import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
-import { slugify } from '@/entities/organization/organization.slug.js'
-import { RoleRepository } from '@/entities/role/role.repository.js'
-import { User } from '@/entities/user/user.entity.js'
-import { hashPassword } from '@/entities/user/user.password.js'
-import { UserRepository } from '@/entities/user/user.repository.js'
+import { MembershipRepository } from '@/entities/membership/index.js'
+import { OrganizationRepository, slugify } from '@/entities/organization/index.js'
+import { RoleRepository } from '@/entities/role/index.js'
+import { User, UserRepository, hashPassword } from '@/entities/user/index.js'
 import { FOUNDER_ROLE_KEY } from '@/support/iam.permissions.js'
 import type { SignUpInput } from '@/use-cases/sign-up/sign-up.types.js'
 
@@ -941,7 +925,7 @@ export { UpdateProfile } from '@/use-cases/update-profile/update-profile.js'
 `,
     'src/use-cases/update-profile/update-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
 
-import { UserRepository } from '@/entities/user/user.repository.js'
+import { UserRepository } from '@/entities/user/index.js'
 import type { UpdateProfileInput } from '@/use-cases/update-profile/update-profile.types.js'
 
 @Injectable()
