@@ -131,10 +131,11 @@ ${clients}
 
 export type ClientId = keyof typeof CLIENTS
 `,
-    'src/index.ts': `export type { ClientId, OAuthClientConfig } from './clients.js'
-export { CLIENTS } from './clients.js'
-
-import { CLIENTS } from './clients.js'
+    'src/index.ts': `export type { ClientId, OAuthClientConfig } from '@/clients.js'
+export { CLIENTS } from '@/clients.js'
+export { clientRedirectUri, oauthClients } from '@/oauth-clients.js'
+`,
+    'src/oauth-clients.ts': `import { CLIENTS } from '@/clients.js'
 
 /**
  * The absolute URL the authorization server must have registered.

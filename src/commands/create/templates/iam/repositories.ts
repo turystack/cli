@@ -14,12 +14,16 @@
  */
 export function renderRepositories(scope: string): Record<string, string> {
   return {
-    'src/membership.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
+    'src/entities/membership/membership.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
-import type { MembershipRecord } from '@/iam.types.js'
-import { Membership } from '@/membership.entity.js'
+import type { z } from 'zod'
+
+import { Membership } from '@/entities/membership/membership.entity.js'
+import { membershipSchema } from '@/entities/membership/membership.schema.js'
+
+type Row = z.infer<typeof membershipSchema>
 
 @Injectable()
 export class MembershipRepository {
@@ -33,7 +37,7 @@ export class MembershipRepository {
       where: (fields, { eq }) => eq(fields.membershipId, input.membershipId),
     })
 
-    return row ? new Membership(row as MembershipRecord) : null
+    return row ? new Membership(row as Row) : null
   }
 
   async findMany(input: {
@@ -50,7 +54,7 @@ export class MembershipRepository {
         ),
     })
 
-    return rows.map((row) => new Membership(row as MembershipRecord))
+    return rows.map((row) => new Membership(row as Row))
   }
 
   async findMembers(input: { organizationId: string }): Promise<Membership[]> {
@@ -59,7 +63,7 @@ export class MembershipRepository {
         eq(fields.organizationId, input.organizationId),
     })
 
-    return rows.map((row) => new Membership(row as MembershipRecord))
+    return rows.map((row) => new Membership(row as Row))
   }
 
   async create(input: {
@@ -77,16 +81,21 @@ export class MembershipRepository {
       workspaceId: input.workspaceId ?? null,
     })
 
-    return new Membership(row as MembershipRecord)
+    return new Membership(row as Row)
   }
 }
 `,
-    'src/organization.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
+    'src/entities/organization/organization.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
-import type { OrganizationRecord } from '@/iam.types.js'
-import { Organization } from '@/organization.entity.js'
+import type { z } from 'zod'
+
+import { Organization } from '@/entities/organization/organization.entity.js'
+import { organizationSchema } from '@/entities/organization/organization.schema.js'
+import type { OrganizationKind, WorkspaceMode } from '@/entities/organization/organization.types.js'
+
+type Row = z.infer<typeof organizationSchema>
 
 @Injectable()
 export class OrganizationRepository {
@@ -101,7 +110,7 @@ export class OrganizationRepository {
         eq(fields.organizationId, input.organizationId),
     })
 
-    return row ? new Organization(row as OrganizationRecord) : null
+    return row ? new Organization(row as Row) : null
   }
 
   async findBySlug(input: { slug: string }): Promise<Organization | null> {
@@ -109,7 +118,7 @@ export class OrganizationRepository {
       where: (fields, { eq }) => eq(fields.slug, input.slug),
     })
 
-    return row ? new Organization(row as OrganizationRecord) : null
+    return row ? new Organization(row as Row) : null
   }
 
   async findMany(input: { organizationId?: string }): Promise<Organization[]> {
@@ -120,14 +129,14 @@ export class OrganizationRepository {
           : undefined,
     })
 
-    return rows.map((row) => new Organization(row as OrganizationRecord))
+    return rows.map((row) => new Organization(row as Row))
   }
 
   async create(input: {
-    kind: OrganizationRecord['kind']
+    kind: OrganizationKind
     name: string
     slug: string
-    workspaceMode: OrganizationRecord['workspaceMode']
+    workspaceMode: WorkspaceMode
   }): Promise<Organization> {
     const row = await this.db.organization.create({
       kind: input.kind,
@@ -138,16 +147,21 @@ export class OrganizationRepository {
       workspaceMode: input.workspaceMode,
     })
 
-    return new Organization(row as OrganizationRecord)
+    return new Organization(row as Row)
   }
 }
 `,
-    'src/otp.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
+    'src/entities/otp/otp.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
-import type { OtpChannel, OtpPurpose, OtpRecord } from '@/iam.types.js'
-import { Otp } from '@/otp.entity.js'
+import type { z } from 'zod'
+
+import { Otp } from '@/entities/otp/otp.entity.js'
+import { otpSchema } from '@/entities/otp/otp.schema.js'
+import type { OtpChannel, OtpPurpose } from '@/entities/otp/otp.types.js'
+
+type Row = z.infer<typeof otpSchema>
 
 @Injectable()
 export class OtpRepository {
@@ -170,7 +184,7 @@ export class OtpRepository {
         ),
     })
 
-    return row ? new Otp(row as OtpRecord) : null
+    return row ? new Otp(row as Row) : null
   }
 
   async create(input: {
@@ -192,7 +206,7 @@ export class OtpRepository {
       userId: input.userId,
     })
 
-    return new Otp(row as OtpRecord)
+    return new Otp(row as Row)
   }
 
   async consume(input: { at: Date; otpId: string }): Promise<void> {
@@ -211,11 +225,11 @@ export class OtpRepository {
   }
 }
 `,
-    'src/role.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
+    'src/entities/role/role.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { uuidv7 } from 'uuidv7'
 
-import type { RoleKind, RoleRecord } from '@/iam.types.js'
+import type { Role, RoleKind } from '@/entities/role/role.types.js'
 
 @Injectable()
 export class RoleRepository {
@@ -224,18 +238,18 @@ export class RoleRepository {
     private readonly db: DatabaseService,
   ) {}
 
-  async find(input: { roleId: string }): Promise<RoleRecord | null> {
+  async find(input: { roleId: string }): Promise<Role | null> {
     const row = await this.db.role.findFirst({
       where: (fields, { eq }) => eq(fields.roleId, input.roleId),
     })
 
-    return (row as RoleRecord | undefined) ?? null
+    return (row as Role | undefined) ?? null
   }
 
   async findByKey(input: {
     key: string
     organizationId?: string | null
-  }): Promise<RoleRecord | null> {
+  }): Promise<Role | null> {
     const row = await this.db.role.findFirst({
       where: (fields, { and, eq, isNull }) =>
         and(
@@ -246,12 +260,12 @@ export class RoleRepository {
         ),
     })
 
-    return (row as RoleRecord | undefined) ?? null
+    return (row as Role | undefined) ?? null
   }
 
   async findAvailable(input: {
     organizationId: string
-  }): Promise<RoleRecord[]> {
+  }): Promise<Role[]> {
     const rows = await this.db.role.findMany({
       where: (fields, { eq, or }) =>
         or(
@@ -260,7 +274,7 @@ export class RoleRepository {
         ),
     })
 
-    return rows as RoleRecord[]
+    return rows as Role[]
   }
 
   async create(input: {
@@ -269,7 +283,7 @@ export class RoleRepository {
     kind: RoleKind
     name: string
     organizationId: string | null
-  }): Promise<RoleRecord> {
+  }): Promise<Role> {
     const row = await this.db.role.create({
       description: input.description,
       key: input.key,
@@ -279,7 +293,7 @@ export class RoleRepository {
       roleId: uuidv7(),
     })
 
-    return row as RoleRecord
+    return row as Role
   }
 
   async findPermissionKeys(input: { roleId: string }): Promise<string[]> {
@@ -311,13 +325,18 @@ export class RoleRepository {
   }
 }
 `,
-    'src/user.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
+    'src/entities/user/user.repository.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { ClockService } from '@turystack/nestjs-context'
 import { uuidv7 } from 'uuidv7'
 
-import type { SocialProfile, UserRecord } from '@/iam.types.js'
-import { User } from '@/user.entity.js'
+import type { z } from 'zod'
+
+import { User } from '@/entities/user/user.entity.js'
+import { userSchema } from '@/entities/user/user.schema.js'
+import type { SocialProfile } from '@/entities/user/user.types.js'
+
+type Row = z.infer<typeof userSchema>
 
 @Injectable()
 export class UserRepository {
@@ -333,7 +352,7 @@ export class UserRepository {
       where: (fields, { eq }) => eq(fields.userId, input.userId),
     })
 
-    return row ? new User(row as UserRecord) : null
+    return row ? new User(row as Row) : null
   }
 
   async findByEmail(input: { email: string }): Promise<User | null> {
@@ -341,7 +360,7 @@ export class UserRepository {
       where: (fields, { eq }) => eq(fields.email, normalizeEmail(input.email)),
     })
 
-    return row ? new User(row as UserRecord) : null
+    return row ? new User(row as Row) : null
   }
 
   async findByProvider(input: { profile: SocialProfile }): Promise<User | null> {
@@ -377,7 +396,7 @@ export class UserRepository {
       userId: uuidv7(),
     })
 
-    return new User(row as UserRecord)
+    return new User(row as Row)
   }
 
   async update(input: {

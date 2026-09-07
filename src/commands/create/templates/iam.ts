@@ -44,9 +44,9 @@ export function generateIamFiles(context: {
           types: './dist/index.d.ts',
         },
         './contracts': {
-          default: './dist/iam.schema.js',
-          import: './dist/iam.schema.js',
-          types: './dist/iam.schema.d.ts',
+          default: './dist/support/iam.contracts.js',
+          import: './dist/support/iam.contracts.js',
+          types: './dist/support/iam.contracts.d.ts',
         },
       },
       main: './dist/index.js',
@@ -67,14 +67,36 @@ export function generateIamFiles(context: {
 Identity and access: the person, the organizations they act for, and the
 permissions they hold there.
 
-| File | What it owns |
+\`\`\`text
+entities/       one folder per aggregate, each owning its own contract
+├── user/       user.schema.ts · user.types.ts · user.entity.ts
+│               user.repository.ts · user.mock.ts · user.password.ts
+├── organization/ · membership/ · otp/ · role/
+└── permission/ · workspace/     a contract with no behaviour is still a folder
+support/        what no single aggregate owns
+├── iam.permissions.ts   the catalogue: permissions, roles, the platform slug
+└── iam.contracts.ts     what this package publishes as \`./contracts\`
+use-cases/      one folder per operation
+└── sign-up/    sign-up.schema.ts · sign-up.types.ts · sign-up.ts · index.ts
+\`\`\`
+
+| Where | What it owns |
 | --- | --- |
-| \`iam.schema.ts\` | the contracts every surface validates against |
-| \`iam.mock.ts\` | the builders a test uses instead of a database |
-| \`iam.permissions.ts\` | the permission catalogue and the roles the product ships |
-| \`*.entity.ts\` | the invariants — what may be true of a row |
-| \`*.repository.ts\` | rows in and out, nothing else |
-| \`use-cases/\` | one operation each |
+| \`<aggregate>.schema.ts\` | the row it owns, and the closed sets that row uses |
+| \`<aggregate>.types.ts\` | what those sets are called in TypeScript |
+| \`<aggregate>.entity.ts\` | the invariants — what may be true of a row |
+| \`<aggregate>.repository.ts\` | rows in and out, nothing else |
+| \`<aggregate>.mock.ts\` | the builder a test uses instead of a database |
+| \`use-cases/<operation>/\` | one operation, the shape it accepts, and a barrel |
+
+There is no schema file for the whole domain. A file every folder imports from
+is a file every folder is coupled to, and the enum an operation needs stops
+being findable from the operation that needs it. A row is inferred where it is
+used rather than published as a type: \`User\` is the entity, and a
+\`UserRecord\` beside it would be a second name for the same thing.
+
+What leaves this package is the contracts and the operations. The entities and
+the repositories are how the domain works, not what it offers (\`ARC-LAY-4\`).
 
 The model these follow is \`turystack-modeling\` › \`10-model-iam.md\`, installed
 into \`.claude/skills\`. A table, a column or a rule that differs from it is a
@@ -104,70 +126,53 @@ code does not.
     ...renderRepositories(scope),
     ...renderUseCases(scope),
     'src/index.ts': `export {
-  mockMembership,
-  mockOrganization,
-  mockOtp,
-  mockUser,
-} from '@/iam.mock.js'
-export { Membership } from '@/membership.entity.js'
-export { Organization } from '@/organization.entity.js'
-export { MAX_OTP_ATTEMPTS, Otp } from '@/otp.entity.js'
-export { User } from '@/user.entity.js'
-
-export { MembershipRepository } from '@/membership.repository.js'
-export { OrganizationRepository } from '@/organization.repository.js'
-export { OtpRepository } from '@/otp.repository.js'
-export { RoleRepository } from '@/role.repository.js'
-export { UserRepository } from '@/user.repository.js'
-
-export {
   PERMISSIONS,
   PLATFORM_ORGANIZATION_SLUG,
   SYSTEM_ROLES,
-} from '@/iam.permissions.js'
+} from '@/support/iam.permissions.js'
+export { IAM_PROVIDERS } from '@/support/iam.providers.js'
+
+export { GetProfile } from '@/use-cases/get-profile/index.js'
+export type { GetProfileInput, Profile } from '@/use-cases/get-profile/index.js'
 export {
+  CODE_TTL_MINUTES,
+  RequestCode,
   requestCodeSchema,
+} from '@/use-cases/request-code/index.js'
+export type { RequestCodeInput } from '@/use-cases/request-code/index.js'
+export { ResolveProfile } from '@/use-cases/resolve-profile/index.js'
+export { SeedIam } from '@/use-cases/seed-iam/index.js'
+export {
+  SignInWithCode,
   signInWithCodeSchema,
+} from '@/use-cases/sign-in-with-code/index.js'
+export type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/index.js'
+export {
+  SignInWithPassword,
   signInWithPasswordSchema,
-  signUpSchema,
-} from '@/iam.schema.js'
-export type {
-  Audience,
-  OtpChannel,
-  OtpPurpose,
-  RequestCodeInput,
-  RoleKind,
-  SignInWithCodeInput,
-  SignInWithPasswordInput,
-  SignUpInput,
-  SocialProfile,
-} from '@/iam.types.js'
-
-export { GetProfile } from '@/use-cases/get-profile/get-profile.js'
-export type { Profile } from '@/use-cases/get-profile/get-profile.types.js'
-export { RequestCode } from '@/use-cases/request-code/request-code.js'
-export { ResolveProfile } from '@/use-cases/resolve-profile/resolve-profile.js'
-export { SeedIam } from '@/use-cases/seed-iam/seed-iam.js'
-export { SignInWithCode } from '@/use-cases/sign-in-with-code/sign-in-with-code.js'
-export { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
-export { SignInWithProvider } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.js'
-export { SignUp } from '@/use-cases/sign-up/sign-up.js'
-export { UpdateProfile } from '@/use-cases/update-profile/update-profile.js'
-
-import { MembershipRepository } from '@/membership.repository.js'
-import { OrganizationRepository } from '@/organization.repository.js'
-import { OtpRepository } from '@/otp.repository.js'
-import { RoleRepository } from '@/role.repository.js'
-import { GetProfile } from '@/use-cases/get-profile/get-profile.js'
-import { RequestCode } from '@/use-cases/request-code/request-code.js'
-import { ResolveProfile } from '@/use-cases/resolve-profile/resolve-profile.js'
-import { SeedIam } from '@/use-cases/seed-iam/seed-iam.js'
-import { SignInWithCode } from '@/use-cases/sign-in-with-code/sign-in-with-code.js'
-import { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
-import { SignInWithProvider } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.js'
-import { SignUp } from '@/use-cases/sign-up/sign-up.js'
-import { UpdateProfile } from '@/use-cases/update-profile/update-profile.js'
-import { UserRepository } from '@/user.repository.js'
+} from '@/use-cases/sign-in-with-password/index.js'
+export type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/index.js'
+export { SignInWithProvider } from '@/use-cases/sign-in-with-provider/index.js'
+export type { SignInWithProviderInput } from '@/use-cases/sign-in-with-provider/index.js'
+export { SignUp, signUpSchema } from '@/use-cases/sign-up/index.js'
+export type { SignUpInput } from '@/use-cases/sign-up/index.js'
+export { UpdateProfile } from '@/use-cases/update-profile/index.js'
+export type { UpdateProfileInput } from '@/use-cases/update-profile/index.js'
+`,
+    'src/support/iam.providers.ts': `import { MembershipRepository } from '@/entities/membership/membership.repository.js'
+import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
+import { OtpRepository } from '@/entities/otp/otp.repository.js'
+import { RoleRepository } from '@/entities/role/role.repository.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import { GetProfile } from '@/use-cases/get-profile/index.js'
+import { RequestCode } from '@/use-cases/request-code/index.js'
+import { ResolveProfile } from '@/use-cases/resolve-profile/index.js'
+import { SeedIam } from '@/use-cases/seed-iam/index.js'
+import { SignInWithCode } from '@/use-cases/sign-in-with-code/index.js'
+import { SignInWithPassword } from '@/use-cases/sign-in-with-password/index.js'
+import { SignInWithProvider } from '@/use-cases/sign-in-with-provider/index.js'
+import { SignUp } from '@/use-cases/sign-up/index.js'
+import { UpdateProfile } from '@/use-cases/update-profile/index.js'
 
 /**
  * Everything this domain provides, as one list.
@@ -175,6 +180,14 @@ import { UserRepository } from '@/user.repository.js'
  * The API registers this rather than naming fourteen classes: a use case added
  * here and forgotten in the module is a provider Nest cannot resolve, and it
  * fails at boot with a message about a parameter index.
+ *
+ * The repositories are in the list because the operations need them injected;
+ * they are not in the package's barrel, because nothing outside this package
+ * may reach a table directly (\`ARC-LAY-4\`).
+ *
+ * It lives here rather than in \`index.ts\` because a barrel re-exports and
+ * declares nothing (\`ARC-LAY-5\`) — a consumer importing one symbol from it
+ * should not evaluate a list of fourteen classes to get it.
  */
 export const IAM_PROVIDERS = [
   GetProfile,

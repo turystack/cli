@@ -48,7 +48,7 @@ export function generateExceptionsFiles(context: {
       types: './dist/index.d.ts',
       version: '0.0.0',
     }),
-    'src/index.ts': `import {
+    'src/exceptions.catalogue.ts': `import {
   createExceptions,
   type InferExceptionCodes,
 } from '@turystack/exceptions'
@@ -88,6 +88,9 @@ export const exceptions = createExceptions((e) => ({
 }))
 
 export type Exceptions = InferExceptionCodes<typeof exceptions>
+`,
+    'src/index.ts': `export { exceptions } from '@/exceptions.catalogue.js'
+export type { Exceptions } from '@/exceptions.catalogue.js'
 `,
     'tsconfig.build.json': renderPackageBuildTsconfig(),
     'tsconfig.json': renderPackageTsconfig(),

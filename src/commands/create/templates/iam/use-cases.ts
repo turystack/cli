@@ -1,8 +1,16 @@
 // turystack-proof:pattern-data — this file emits a package as source text.
 
 /**
- * The use cases: one operation each, and the transaction boundary where more
- * than one row has to be true at once.
+ * The use cases: one operation each, in a folder each.
+ *
+ * The folder holds the operation, the shape it accepts and a barrel. The barrel
+ * is what the domain's own index imports, so adding a file to an operation
+ * never changes the line that exports it.
+ *
+ * `resolve-profile` and `seed-iam` have no shape of their own — the first
+ * implements a signature the IAM library owns, the second takes nothing — so
+ * neither has a types file. An empty one would be a file that exists to satisfy
+ * a pattern rather than to hold something.
  *
  * Signing up writes four rows — the person, their organization, its first
  * workspace and the membership that ties them — and any three without the
@@ -14,11 +22,11 @@ export function renderUseCases(scope: string): Record<string, string> {
 import { DatabaseService } from '${scope}/database'
 import { exceptions } from '${scope}/exceptions'
 
-import { MembershipRepository } from '@/membership.repository.js'
-import { OrganizationRepository } from '@/organization.repository.js'
-import { RoleRepository } from '@/role.repository.js'
-import type { Profile } from '@/use-cases/get-profile/get-profile.types.js'
-import { UserRepository } from '@/user.repository.js'
+import { MembershipRepository } from '@/entities/membership/membership.repository.js'
+import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
+import { RoleRepository } from '@/entities/role/role.repository.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import type { GetProfileInput, Profile } from '@/use-cases/get-profile/get-profile.types.js'
 
 @Injectable()
 export class GetProfile {
@@ -35,10 +43,7 @@ export class GetProfile {
     private readonly db: DatabaseService,
   ) {}
 
-  async execute(input: {
-    organizationId: string
-    userId: string
-  }): Promise<Profile> {
+  async execute(input: GetProfileInput): Promise<Profile> {
     const user = await this.users.find({
       userId: input.userId,
     })
@@ -147,14 +152,38 @@ export class GetProfile {
   } | null
   permissions: string[]
 }
+
+export type GetProfileInput = {
+  organizationId: string
+  userId: string
+}
+`,
+    'src/use-cases/get-profile/index.ts': `export type { GetProfileInput, Profile } from '@/use-cases/get-profile/get-profile.types.js'
+export { GetProfile } from '@/use-cases/get-profile/get-profile.js'
+`,
+    'src/use-cases/request-code/index.ts': `export type { RequestCodeInput } from '@/use-cases/request-code/request-code.types.js'
+export { RequestCode, CODE_TTL_MINUTES } from '@/use-cases/request-code/request-code.js'
+export { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
+`,
+    'src/use-cases/request-code/request-code.schema.ts': `import {
+  EmailSchema,
+} from '@turystack/fields'
+import { z } from 'zod'
+
+import { otpPurposeSchema } from '@/entities/otp/otp.schema.js'
+
+export const requestCodeSchema = z.object({
+  email: EmailSchema(),
+  purpose: otpPurposeSchema,
+})
 `,
     'src/use-cases/request-code/request-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { ClockService } from '@turystack/nestjs-context'
 
-import type { RequestCodeInput } from '@/iam.types.js'
-import { generateCode, hashCode } from '@/otp.code.js'
-import { OtpRepository } from '@/otp.repository.js'
-import { UserRepository } from '@/user.repository.js'
+import { generateCode, hashCode } from '@/entities/otp/otp.code.js'
+import { OtpRepository } from '@/entities/otp/otp.repository.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import type { RequestCodeInput } from '@/use-cases/request-code/request-code.types.js'
 
 export const CODE_TTL_MINUTES = 10
 
@@ -197,11 +226,19 @@ export class RequestCode {
   }
 }
 `,
+    'src/use-cases/request-code/request-code.types.ts': `import type { z } from 'zod'
+
+import type { requestCodeSchema } from '@/use-cases/request-code/request-code.schema.js'
+
+export type RequestCodeInput = z.infer<typeof requestCodeSchema>
+`,
+    'src/use-cases/resolve-profile/index.ts': `export { ResolveProfile } from '@/use-cases/resolve-profile/resolve-profile.js'
+`,
     'src/use-cases/resolve-profile/resolve-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
 import type { IamProfile, IamProfileResolver, IamRole } from '@turystack/nestjs-iam'
 
-import { MembershipRepository } from '@/membership.repository.js'
-import { RoleRepository } from '@/role.repository.js'
+import { MembershipRepository } from '@/entities/membership/membership.repository.js'
+import { RoleRepository } from '@/entities/role/role.repository.js'
 
 @Injectable()
 export class ResolveProfile implements IamProfileResolver {
@@ -266,19 +303,17 @@ export class ResolveProfile implements IamProfileResolver {
   }
 }
 `,
+    'src/use-cases/seed-iam/index.ts': `export { SeedIam } from '@/use-cases/seed-iam/seed-iam.js'
+`,
     'src/use-cases/seed-iam/seed-iam.ts': `import { Inject, Injectable, Logger } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
 
-import {
-  PERMISSIONS,
-  PLATFORM_ORGANIZATION_SLUG,
-  SYSTEM_ROLES,
-} from '@/iam.permissions.js'
-import type { RoleSeed } from '@/iam.types.js'
-import { OrganizationRepository } from '@/organization.repository.js'
-import { RoleRepository } from '@/role.repository.js'
+import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
+import { RoleRepository } from '@/entities/role/role.repository.js'
+import type { RoleSeed } from '@/entities/role/role.types.js'
+import { PERMISSIONS, PLATFORM_ORGANIZATION_SLUG, SYSTEM_ROLES } from '@/support/iam.permissions.js'
 
 @Injectable()
 export class SeedIam {
@@ -396,15 +431,29 @@ export class SeedIam {
   }
 }
 `,
+    'src/use-cases/sign-in-with-code/index.ts': `export type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/sign-in-with-code.types.js'
+export { SignInWithCode } from '@/use-cases/sign-in-with-code/sign-in-with-code.js'
+export { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
+`,
+    'src/use-cases/sign-in-with-code/sign-in-with-code.schema.ts': `import {
+  EmailSchema,
+} from '@turystack/fields'
+import { z } from 'zod'
+
+export const signInWithCodeSchema = z.object({
+  code: z.string().trim().length(6),
+  email: EmailSchema(),
+})
+`,
     'src/use-cases/sign-in-with-code/sign-in-with-code.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { exceptions } from '${scope}/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 
-import type { SignInWithCodeInput } from '@/iam.types.js'
-import { OtpRepository } from '@/otp.repository.js'
-import type { User } from '@/user.entity.js'
-import { UserRepository } from '@/user.repository.js'
+import { OtpRepository } from '@/entities/otp/otp.repository.js'
+import { User } from '@/entities/user/user.entity.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import type { SignInWithCodeInput } from '@/use-cases/sign-in-with-code/sign-in-with-code.types.js'
 
 @Injectable()
 export class SignInWithCode {
@@ -465,12 +514,32 @@ export class SignInWithCode {
   }
 }
 `,
+    'src/use-cases/sign-in-with-code/sign-in-with-code.types.ts': `import type { z } from 'zod'
+
+import type { signInWithCodeSchema } from '@/use-cases/sign-in-with-code/sign-in-with-code.schema.js'
+
+export type SignInWithCodeInput = z.infer<typeof signInWithCodeSchema>
+`,
+    'src/use-cases/sign-in-with-password/index.ts': `export type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/sign-in-with-password.types.js'
+export { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
+export { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
+`,
+    'src/use-cases/sign-in-with-password/sign-in-with-password.schema.ts': `import {
+  EmailSchema,
+} from '@turystack/fields'
+import { z } from 'zod'
+
+export const signInWithPasswordSchema = z.object({
+  email: EmailSchema(),
+  password: z.string().min(1),
+})
+`,
     'src/use-cases/sign-in-with-password/sign-in-with-password.test.ts': `import { describe, expect, it, vi } from 'vitest'
 
-import { mockUser } from '@/iam.mock.js'
+import { mockUser } from '@/entities/user/user.mock.js'
+import { hashPassword } from '@/entities/user/user.password.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
 import { SignInWithPassword } from '@/use-cases/sign-in-with-password/sign-in-with-password.js'
-import { hashPassword } from '@/user.password.js'
-import type { UserRepository } from '@/user.repository.js'
 
 const clock = {
   in: (milliseconds: number) => new Date(milliseconds),
@@ -571,9 +640,9 @@ describe('SignInWithPassword', () => {
 import { exceptions } from '${scope}/exceptions'
 import { ClockService } from '@turystack/nestjs-context'
 
-import type { SignInWithPasswordInput } from '@/iam.types.js'
-import type { User } from '@/user.entity.js'
-import { UserRepository } from '@/user.repository.js'
+import { User } from '@/entities/user/user.entity.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import type { SignInWithPasswordInput } from '@/use-cases/sign-in-with-password/sign-in-with-password.types.js'
 
 @Injectable()
 export class SignInWithPassword {
@@ -610,20 +679,30 @@ export class SignInWithPassword {
   }
 }
 `,
+    'src/use-cases/sign-in-with-password/sign-in-with-password.types.ts': `import type { z } from 'zod'
+
+import type { signInWithPasswordSchema } from '@/use-cases/sign-in-with-password/sign-in-with-password.schema.js'
+
+export type SignInWithPasswordInput = z.infer<typeof signInWithPasswordSchema>
+`,
+    'src/use-cases/sign-in-with-provider/index.ts': `export type { SignInWithProviderInput } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.types.js'
+export { SignInWithProvider } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.js'
+`,
     'src/use-cases/sign-in-with-provider/sign-in-with-provider.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
 
-import { FOUNDER_ROLE_KEY } from '@/iam.permissions.js'
-import type { SocialProfile } from '@/iam.types.js'
-import { MembershipRepository } from '@/membership.repository.js'
-import { OrganizationRepository } from '@/organization.repository.js'
-import { slugify } from '@/organization.slug.js'
-import { RoleRepository } from '@/role.repository.js'
-import type { User } from '@/user.entity.js'
-import { UserRepository } from '@/user.repository.js'
+import { MembershipRepository } from '@/entities/membership/membership.repository.js'
+import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
+import { slugify } from '@/entities/organization/organization.slug.js'
+import { RoleRepository } from '@/entities/role/role.repository.js'
+import { User } from '@/entities/user/user.entity.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import type { SocialProfile } from '@/entities/user/user.types.js'
+import { FOUNDER_ROLE_KEY } from '@/support/iam.permissions.js'
+import type { SignInWithProviderInput } from '@/use-cases/sign-in-with-provider/sign-in-with-provider.types.js'
 
 @Injectable()
 export class SignInWithProvider {
@@ -643,7 +722,7 @@ export class SignInWithProvider {
   ) {}
 
   @Transactional()
-  async execute(profile: SocialProfile): Promise<User> {
+  async execute(profile: SignInWithProviderInput): Promise<User> {
     const linked = await this.users.findByProvider({
       profile,
     })
@@ -716,6 +795,35 @@ export class SignInWithProvider {
   }
 }
 `,
+    'src/use-cases/sign-in-with-provider/sign-in-with-provider.types.ts': `import type { SocialProfile } from '@/entities/user/user.types.js'
+
+/**
+ * What the operation accepts: a profile a provider's token already proved.
+ *
+ * Verifying the token belongs to the social-auth library; by the time this
+ * operation runs, the question is which person the profile is.
+ */
+export type SignInWithProviderInput = SocialProfile
+`,
+    'src/use-cases/sign-up/index.ts': `export type { SignUpInput } from '@/use-cases/sign-up/sign-up.types.js'
+export { SignUp } from '@/use-cases/sign-up/sign-up.js'
+export { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
+`,
+    'src/use-cases/sign-up/sign-up.schema.ts': `import {
+  EmailSchema,
+  PasswordSchema,
+  PersonNameSchema,
+  RequiredStringSchema,
+} from '@turystack/fields'
+import { z } from 'zod'
+
+export const signUpSchema = z.object({
+  email: EmailSchema(),
+  name: PersonNameSchema(),
+  organizationName: RequiredStringSchema({ max: 120 }),
+  password: PasswordSchema(),
+})
+`,
     'src/use-cases/sign-up/sign-up.ts': `import { Inject, Injectable } from '@nestjs/common'
 import { DatabaseService } from '${scope}/database'
 import { exceptions } from '${scope}/exceptions'
@@ -723,15 +831,15 @@ import { ClockService } from '@turystack/nestjs-context'
 import { Transactional } from '@turystack/nestjs-database'
 import { uuidv7 } from 'uuidv7'
 
-import { FOUNDER_ROLE_KEY } from '@/iam.permissions.js'
-import type { SignUpInput } from '@/iam.types.js'
-import { MembershipRepository } from '@/membership.repository.js'
-import { OrganizationRepository } from '@/organization.repository.js'
-import { slugify } from '@/organization.slug.js'
-import { RoleRepository } from '@/role.repository.js'
-import type { User } from '@/user.entity.js'
-import { hashPassword } from '@/user.password.js'
-import { UserRepository } from '@/user.repository.js'
+import { MembershipRepository } from '@/entities/membership/membership.repository.js'
+import { OrganizationRepository } from '@/entities/organization/organization.repository.js'
+import { slugify } from '@/entities/organization/organization.slug.js'
+import { RoleRepository } from '@/entities/role/role.repository.js'
+import { User } from '@/entities/user/user.entity.js'
+import { hashPassword } from '@/entities/user/user.password.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import { FOUNDER_ROLE_KEY } from '@/support/iam.permissions.js'
+import type { SignUpInput } from '@/use-cases/sign-up/sign-up.types.js'
 
 const MAX_SLUG_ATTEMPTS = 50
 
@@ -822,9 +930,19 @@ export class SignUp {
   }
 }
 `,
+    'src/use-cases/sign-up/sign-up.types.ts': `import type { z } from 'zod'
+
+import type { signUpSchema } from '@/use-cases/sign-up/sign-up.schema.js'
+
+export type SignUpInput = z.infer<typeof signUpSchema>
+`,
+    'src/use-cases/update-profile/index.ts': `export type { UpdateProfileInput } from '@/use-cases/update-profile/update-profile.types.js'
+export { UpdateProfile } from '@/use-cases/update-profile/update-profile.js'
+`,
     'src/use-cases/update-profile/update-profile.ts': `import { Inject, Injectable } from '@nestjs/common'
 
-import { UserRepository } from '@/user.repository.js'
+import { UserRepository } from '@/entities/user/user.repository.js'
+import type { UpdateProfileInput } from '@/use-cases/update-profile/update-profile.types.js'
 
 @Injectable()
 export class UpdateProfile {
@@ -833,7 +951,7 @@ export class UpdateProfile {
     private readonly users: UserRepository,
   ) {}
 
-  async execute(input: { name?: string; userId: string }): Promise<void> {
+  async execute(input: UpdateProfileInput): Promise<void> {
     await this.users.update({
       data: {
         ...(input.name === undefined
@@ -845,6 +963,11 @@ export class UpdateProfile {
       userId: input.userId,
     })
   }
+}
+`,
+    'src/use-cases/update-profile/update-profile.types.ts': `export type UpdateProfileInput = {
+  name?: string
+  userId: string
 }
 `,
   }

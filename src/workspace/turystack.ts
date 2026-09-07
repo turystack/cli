@@ -25,7 +25,7 @@ export const TURYSTACK_PACKAGES: Record<
 > = {
   '@turystack/backend-config': {
     directory: 'backend-config',
-    version: '1.3.0',
+    version: '1.3.1',
   },
   '@turystack/config': {
     directory: 'config',
@@ -45,7 +45,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/frontend-config': {
     directory: 'frontend-config',
-    version: '1.3.0',
+    version: '1.3.1',
   },
   '@turystack/nestjs-cache': {
     directory: 'nestjs-cache',
@@ -113,7 +113,7 @@ export const TURYSTACK_PACKAGES: Record<
   },
   '@turystack/proof-mode-gates': {
     directory: 'proof-mode-gates',
-    version: '1.0.4',
+    version: '1.1.1',
   },
   '@turystack/query-dsl': {
     directory: 'query-dsl',
